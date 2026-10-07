@@ -732,10 +732,15 @@ const WEAPONS = {
     spread: { base: 0.4, move: 2.0, air: 5, crouch: 0.7, perShot: 0.2, maxAdd: 1.9, recover: 7 },
     pattern: mkPattern(30, 0.7, 0.45, 12, 0.35, 0.8, 1.2), resetTime: 0.3, speedMul: 1.05, price: 1250, reward: 600, snd: 'smg', flash: 0.8,
   },
-  rifle: {
-    name: 'AR-47 Sturmgewehr', slot: 1, dmg: 36, rpm: 600, auto: true, mag: 30, reserve: 90, reload: 2.5, head: 4, pen: 0.775, range: 0.98,
+  ak47: {
+    name: 'AK-47', slot: 1, dmg: 36, rpm: 600, auto: true, mag: 30, reserve: 90, reload: 2.5, head: 4, pen: 0.775, range: 0.98,
     spread: { base: 0.1, move: 4.0, air: 7, crouch: 0.65, perShot: 0.24, maxAdd: 2.3, recover: 7 },
     pattern: mkPattern(30, 1.25, 0.7, 10, 0.55, 0.62, 0.3), resetTime: 0.36, speedMul: 0.92, price: 2700, reward: 300, snd: 'rifle', flash: 1.0,
+  },
+  m4a1: {
+    name: 'M4A1', slot: 1, dmg: 33, rpm: 666, auto: true, mag: 30, reserve: 90, reload: 2.3, head: 4, pen: 0.7, range: 0.97,
+    spread: { base: 0.08, move: 3.2, air: 6.5, crouch: 0.62, perShot: 0.18, maxAdd: 1.8, recover: 8 },
+    pattern: mkPattern(30, 0.95, 0.5, 11, 0.35, 0.55, 2.1), resetTime: 0.34, speedMul: 0.95, price: 3100, reward: 300, snd: 'rifle', flash: 0.9,
   },
   sniper: {
     name: 'SR-50 Scharfschützengewehr', slot: 1, dmg: 115, rpm: 42, auto: false, mag: 5, reserve: 30, reload: 3.4, head: 4, pen: 0.98, range: 0.99,
@@ -789,7 +794,16 @@ function buildGun(kind) {
     bx(g, 0.035, 0.1, 0.05, M.glove, 0, -0.08, 0.0, 0.2); bx(g, 0.03, 0.04, 0.12, M.metal, 0, -0.01, 0.12);
     parts.mag = bx(g, 0.03, 0.18, 0.05, M.steel, 0, -0.13, -0.17); bx(g, 0.006, 0.025, 0.006, M.metal, 0, 0.045, -0.5); bx(g, 0.02, 0.012, 0.02, M.metal, 0, 0.042, -0.02);
     hands(0, -0.09, 0.0, 0, -0.07, -0.3); parts.muzzle = new THREE.Vector3(0, 0.005, -0.57);
-  } else if (kind === 'rifle') {
+  } else if (kind === 'm4a1') {
+    bx(g, 0.05, 0.07, 0.26, M.metal, 0, -0.005, -0.08); bx(g, 0.05, 0.055, 0.3, M.metal, 0, 0.05, -0.13); bx(g, 0.034, 0.012, 0.16, M.steel, 0, 0.083, -0.2);
+    bx(g, 0.032, 0.04, 0.07, M.metal, 0, 0.11, -0.12); cyl(g, 0.011, 0.012, M.lens, 0, 0.11, -0.158, 10);
+    cyl(g, 0.029, 0.34, M.metal, 0, 0.03, -0.46, 14); cyl(g, 0.009, 0.14, M.steel, 0, 0.03, -0.69); cyl(g, 0.015, 0.07, M.metal, 0, 0.03, -0.77);
+    bx(g, 0.012, 0.04, 0.012, M.metal, 0, 0.075, -0.66);
+    cyl(g, 0.02, 0.2, M.metal, 0, 0.03, 0.14); bx(g, 0.04, 0.085, 0.13, M.metal, 0, 0.0, 0.2, 0.05);
+    bx(g, 0.034, 0.1, 0.05, M.metal, 0, -0.085, 0.0, 0.3);
+    parts.mag = bx(g, 0.03, 0.14, 0.055, M.steel, 0, -0.11, -0.1, 0.08);
+    hands(0, -0.1, 0.0, 0, -0.06, -0.4); parts.muzzle = new THREE.Vector3(0, 0.03, -0.81);
+  } else if (kind === 'ak47') {
     bx(g, 0.052, 0.075, 0.36, M.metal, 0, 0, -0.1); bx(g, 0.054, 0.052, 0.22, M.wood, 0, -0.008, -0.38); bx(g, 0.04, 0.012, 0.22, M.metal, 0, 0.034, -0.38);
     cyl(g, 0.011, 0.34, M.steel, 0, 0.012, -0.6); cyl(g, 0.016, 0.06, M.steel, 0, 0.012, -0.78);
     bx(g, 0.042, 0.095, 0.24, M.wood, 0, -0.02, 0.17, 0.12); bx(g, 0.036, 0.1, 0.05, M.wood, 0, -0.085, 0.0, 0.3);
@@ -816,8 +830,8 @@ function buildGun(kind) {
   return g;
 }
 const gunModels = {}; for (const k of Object.keys(WEAPONS)) gunModels[k] = buildGun(k);
-const GUN_POS = { pistol: [0.1, -0.12, -0.27], smg: [0.13, -0.15, -0.3], rifle: [0.13, -0.16, -0.3], sniper: [0.12, -0.15, -0.3], shotgun: [0.13, -0.16, -0.3] };
-const GUN_SCALE = { pistol: 0.9, smg: 0.85, rifle: 0.78, sniper: 0.62, shotgun: 0.78 };
+const GUN_POS = { pistol: [0.1, -0.12, -0.27], smg: [0.13, -0.15, -0.3], ak47: [0.13, -0.16, -0.3], m4a1: [0.13, -0.16, -0.3], sniper: [0.12, -0.15, -0.3], shotgun: [0.13, -0.16, -0.3] };
+const GUN_SCALE = { pistol: 0.9, smg: 0.85, ak47: 0.78, m4a1: 0.78, sniper: 0.62, shotgun: 0.78 };
 
 /* ═════════════════ Spielzustand ═════════════════ */
 const P = {
@@ -870,8 +884,8 @@ function cycleScope() {
 function swapWeapon() { selectWeapon(curKey === 'pistol' ? (primary || 'pistol') : 'pistol'); }
 const BUY = [
   { k: '1', name: 'SMG-9', price: 1250, w: 'smg' }, { k: '2', name: 'PS-12 Pump-Shotgun', price: 1050, w: 'shotgun' },
-  { k: '3', name: 'AR-47 Sturmgewehr', price: 2700, w: 'rifle' }, { k: '4', name: 'SR-50 Scharfschützengewehr', price: 4750, w: 'sniper' },
-  { k: '5', name: 'Kevlar + Helm', price: 1000, armor: true }, { k: '6', name: 'Munition auffüllen', price: 0, refill: true },
+  { k: '3', name: 'AK-47', price: 2700, w: 'ak47' }, { k: '4', name: 'M4A1', price: 3100, w: 'm4a1' }, { k: '5', name: 'SR-50 Scharfschützengewehr', price: 4750, w: 'sniper' },
+  { k: '6', name: 'Kevlar + Helm', price: 1000, armor: true }, { k: '7', name: 'Munition auffüllen', price: 0, refill: true },
 ];
 function buyItem(it) {
   if (P.money < it.price) { toast('Zu wenig Geld'); return; }
@@ -893,7 +907,7 @@ document.addEventListener('keydown', e => {
   keys[e.code] = true;
   if (e.code === 'Space') e.preventDefault();
   if (!G.started || G.paused) return;
-  if (G.buyOpen && /^Digit[1-6]$/.test(e.code)) { buyItem(BUY[+e.code.slice(5) - 1]); return; }
+  if (G.buyOpen && /^Digit[1-7]$/.test(e.code)) { buyItem(BUY[+e.code.slice(5) - 1]); return; }
   if (e.code === 'KeyB' && (G.state === 'freeze' || (G.state === 'live' && G.timer > G.roundTime - 12))) { G.buyOpen = !G.buyOpen; renderBuy(); return; }
   if (!P.alive) return;
   if (e.code === 'Digit1') selectWeapon(primary || 'pistol'); if (e.code === 'Digit2') selectWeapon('pistol');
