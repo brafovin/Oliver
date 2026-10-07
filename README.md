@@ -9,7 +9,7 @@ Einfach `index.html` im Browser öffnen.
 
 ## Oliver Strike (`strike.html`)
 
-Taktischer 3D-Ego-Shooter im Browser (three.js per CDN, sonst eine einzelne Datei). Rundenbasiert gegen KI-Gegner, mit Kaufmenü, Radar und fünf Waffen.
+Taktischer 3D-Ego-Shooter im Browser (three.js per CDN, sonst eine einzelne Datei). Rundenbasiert gegen KI-Gegner, mit Kaufmenü, Radar und sechs Waffen (u. a. AK-47 und M4A1).
 
 **Steuerung:** WASD, Maus, Linksklick schießen, Rechtsklick Zoom (Sniper), Shift schleichen, C ducken, Leertaste springen, R nachladen, 1/2/Q Waffe, B Kaufmenü.
 
