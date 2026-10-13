@@ -23,9 +23,11 @@ Multiplayer-Sandbox im Blockstil: Eine prozedural erzeugte Insel, die man gemein
 
 **Steuerung:** WASD laufen, Maus umsehen, Leertaste springen (2× tippen oder F = fliegen), Shift sprinten bzw. im Flug sinken, Linksklick abbauen, Rechtsklick bauen, Mittelklick Block übernehmen, 1–9 / Mausrad Slot wählen, E Blockauswahl, T Chat, Tab Spielerliste, F3 Koordinaten.
 
+**Tiere & Gegner:** Auf der Insel leben Schweine, Schafe, Kühe und Hühner. Schlägt man sie, laufen sie weg. Nachts kommen Zombies und Spinnen (Spinnen klettern Wände hoch). Bei Sonnenaufgang verbrennen sie. Linksklick bzw. Antippen auf ein Tier oder einen Gegner schlägt zu. Man hat 10 Herzen, die sich langsam wieder auffüllen. Wer besiegt wird, startet am Spawn neu, die Bauwerke bleiben erhalten. Der Host kann Gegner im Pausenmenü (oder mit `/gegner`) abschalten, dann gibt es nur noch Tiere. Der Host steuert alle Tiere und Gegner, damit alle Mitspieler dasselbe sehen.
+
 **Handy & Tablet:** Die Touch-Steuerung schaltet sich automatisch ein. Linker Daumen = Joystick zum Laufen (ganz nach vorn = rennen; an Stufen springt die Figur von selbst), rechts wischen = umsehen, **antippen = Block bauen**, **gedrückt halten = abbauen**. Knöpfe für Springen (2× tippen = fliegen), Sinken, Fliegen/Landen, Blöcke, Chat und Menü; die Hotbar-Slots werden angetippt. Am besten quer halten. Auf Android geht das Spiel beim Start in den Vollbildmodus.
 
-**Chat-Befehle:** `/hilfe`, `/spawn`, `/tp <Name>`, `/seed`, `/code`, `/tag` und `/nacht` (nur Host).
+**Chat-Befehle:** `/hilfe`, `/spawn`, `/tp <Name>`, `/seed`, `/code`, `/tag`, `/nacht` und `/gegner` (nur Host).
 
 **Speichern:** Die Welt des Hosts wird automatisch im Browser gespeichert und kann mit „Gespeicherte Welt fortsetzen“ weitergespielt werden – meist sogar mit demselben Raumcode.
 
