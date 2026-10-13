@@ -2,7 +2,9 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>Oliver Craft</title>
 <style>
   :root{--accent:#6ee36a;--accent2:#3fc1c9;--text:#f4f7fb;--muted:#9aa7b8;--panel:rgba(14,20,30,.9);--line:rgba(255,255,255,.1)}
@@ -84,6 +86,9 @@
   .ib:hover{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.3)}
   .ib img,.slot img{width:100%;max-width:42px;image-rendering:pixelated;pointer-events:none}
   #invBar{display:flex;gap:4px;justify-content:center}
+  .invHead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px}
+  .invHead h2{margin:0}
+  .invHead .btn{flex:none}
   #invBar .slot{cursor:pointer}
 
   /* HUD */
@@ -130,6 +135,55 @@
     .slot span{display:none}
     #chat{bottom:60px}
   }
+
+  /* Touch-Steuerung (Handy/Tablet) */
+  .touchOnly{display:none}
+  body.touch .touchOnly{display:block}
+  body.touch .mouseOnly{display:none}
+  .portraitHint{color:#ffe08a;font-size:13px;margin:0 0 10px}
+  @media (orientation:landscape){.portraitHint{display:none!important}}
+  #touch{position:fixed;inset:0;z-index:4;pointer-events:none;display:none;-webkit-touch-callout:none}
+  body.touch.ingame #touch{display:block}
+  body.touch #hud{z-index:6}
+  body.touch #cross,body.touch #flyTag{display:none}
+  body.touch #hotbar{pointer-events:auto;bottom:max(8px,env(safe-area-inset-bottom))}
+  body.touch .slot{width:min(42px,calc((100vw - 64px) / 9));height:min(42px,calc((100vw - 64px) / 9));padding:3px}
+  body.touch .slot span{display:none}
+  body.touch #badge{left:max(12px,env(safe-area-inset-left))}
+  body.touch #chat{bottom:auto;top:56px;left:max(12px,env(safe-area-inset-left));display:flex;flex-direction:column-reverse}
+  body.touch #chatlog{max-height:30vh}
+  body.touch #chatin{margin:0 0 6px}
+  #tLayer{position:absolute;inset:0;pointer-events:auto;touch-action:none}
+  .tbtn{position:absolute;pointer-events:auto;touch-action:none;display:grid;place-items:center;padding:0;border-radius:50%;
+    background:rgba(0,0,0,.3);border:2px solid rgba(255,255,255,.35);color:#fff;font:700 14px system-ui,sans-serif;
+    -webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+  .tbtn svg{width:52%;height:52%;fill:none;stroke:#fff;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+  .tbtn.on{background:rgba(255,255,255,.35)}
+  #tJump{right:max(22px,env(safe-area-inset-right));bottom:80px;width:78px;height:78px}
+  #tDown{right:calc(max(22px,env(safe-area-inset-right)) + 92px);bottom:88px;width:62px;height:62px;display:none}
+  body.flying #tDown{display:grid}
+  #tFly{right:max(22px,env(safe-area-inset-right));bottom:172px;width:auto;height:38px;padding:0 16px;border-radius:19px}
+  body.flying #tFly{background:rgba(63,193,201,.65);border-color:rgba(255,255,255,.6)}
+  #tTop{position:absolute;top:max(10px,env(safe-area-inset-top));right:max(10px,env(safe-area-inset-right));display:flex;gap:8px}
+  #tTop .tbtn{position:static;width:44px;height:44px;border-radius:12px}
+  #tStick{position:absolute;left:calc(max(24px,env(safe-area-inset-left)) + 64px);top:calc(100% - 150px);width:128px;height:128px;
+    margin:-64px 0 0 -64px;border-radius:50%;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.3);pointer-events:none;opacity:.5}
+  #tStick.on{opacity:1}
+  #tKnob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(255,255,255,.5)}
+  #tRing{position:absolute;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;border:3px solid rgba(255,255,255,.9);
+    pointer-events:none;opacity:0;transform:scale(.3)}
+  #tRing.charge{opacity:1;transform:scale(1);transition:transform .35s linear,opacity .1s}
+  #tRing.active{opacity:1;transform:scale(1);border-color:#ffb347;animation:ring .22s infinite alternate}
+  @keyframes ring{to{transform:scale(.8)}}
+  @media (max-height:500px){
+    .card{padding:16px 18px}
+    h2{font-size:20px;margin-bottom:6px}
+    #pCode{font-size:22px}
+    .roombox{padding:8px 12px;margin:4px 0 8px}
+    .status{margin-bottom:8px}
+    #invGrid{grid-template-columns:repeat(auto-fill,minmax(50px,1fr));margin-bottom:10px}
+    .card .sub{margin-bottom:10px}
+  }
 </style>
 </head>
 <body>
@@ -143,9 +197,24 @@
   <div id="toast"></div>
   <div id="tabList"><span class="lab">Spieler online</span><div class="plist" id="tabPlayers"></div></div>
   <div id="chat"><div id="chatlog"></div>
-    <input id="chatin" type="text" maxlength="120" autocomplete="off" spellcheck="false" placeholder="Nachricht … (Enter senden, Esc abbrechen)"></div>
+    <form id="chatForm" autocomplete="off"><input id="chatin" type="text" maxlength="120" autocomplete="off" spellcheck="false" enterkeyhint="send"
+      placeholder="Nachricht … (Enter senden, Esc abbrechen)"></form></div>
   <div id="bname"></div>
   <div id="hotbar"></div>
+</div>
+
+<div id="touch">
+  <div id="tLayer"></div>
+  <div id="tStick"><div id="tKnob"></div></div>
+  <div id="tRing"></div>
+  <div id="tTop">
+    <button class="tbtn" id="tInv" aria-label="Blöcke"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg></button>
+    <button class="tbtn" id="tChat" aria-label="Chat"><svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/></svg></button>
+    <button class="tbtn" id="tMenu" aria-label="Menü"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  </div>
+  <button class="tbtn" id="tFly">Fliegen</button>
+  <button class="tbtn" id="tDown" aria-label="Sinken"><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+  <button class="tbtn" id="tJump" aria-label="Springen"><svg viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></svg></button>
 </div>
 
 <div id="menu" class="overlay">
@@ -170,9 +239,11 @@
     <p class="err" id="menuErr"></p>
 
     <div class="help">
-      Wer hostet, bekommt einen <b>Raumcode</b>. Freunde öffnen diese Seite und geben ihn ein.<br>
-      <kbd>WASD</kbd> laufen · <kbd>Maus</kbd> umsehen · <kbd>Leertaste</kbd> springen (2× fliegen)<br>
-      <kbd>Linksklick</kbd> abbauen · <kbd>Rechtsklick</kbd> bauen · <kbd>E</kbd> Blöcke · <kbd>T</kbd> Chat
+      Wer hostet, bekommt einen <b>Raumcode</b>. Freunde öffnen diese Seite und geben ihn ein.
+      <span class="mouseOnly"><br><kbd>WASD</kbd> laufen · <kbd>Maus</kbd> umsehen · <kbd>Leertaste</kbd> springen (2× fliegen)<br>
+      <kbd>Linksklick</kbd> abbauen · <kbd>Rechtsklick</kbd> bauen · <kbd>E</kbd> Blöcke · <kbd>T</kbd> Chat</span>
+      <span class="touchOnly">Linker Daumen: laufen · Rechts wischen: umsehen<br>
+      <b>Antippen</b>: Block bauen · <b>Gedrückt halten</b>: abbauen</span>
     </div>
     <div class="links"><a href="index.html">Oliver.io</a> · <a href="strike.html">Oliver Strike</a></div>
   </div>
@@ -197,11 +268,17 @@
     <p class="status" id="pStatus"></p>
     <span class="lab">Spieler</span>
     <div class="plist" id="pPlayers"></div>
-    <label class="slider">Maus-Empfindlichkeit <input type="range" id="sens" min="0.2" max="3" step="0.05"></label>
+    <label class="slider">Empfindlichkeit <input type="range" id="sens" min="0.2" max="3" step="0.05"></label>
     <label class="slider">Lautstärke <input type="range" id="vol" min="0" max="1" step="0.05"></label>
     <button class="btn primary" id="resume" style="margin-top:14px">Weiterspielen</button>
     <button class="btn ghost" id="leave">Spiel verlassen</button>
-    <div class="help">
+    <div class="help touchOnly">
+      <p class="portraitHint">Tipp: Halte dein Handy quer, dann siehst du mehr.</p>
+      <b>Linker Daumen</b>: laufen (ganz nach vorn = rennen) · <b>Rechts wischen</b>: umsehen<br>
+      <b>Antippen</b>: Block bauen · <b>Gedrückt halten</b>: abbauen<br>
+      ▲ springen (2× tippen = fliegen) · ▼ im Flug sinken · Blöcke-Knopf oben rechts: Auswahl
+    </div>
+    <div class="help mouseOnly">
       <kbd>WASD</kbd> laufen · <kbd>Leertaste</kbd> springen · <kbd>Shift</kbd> sprinten / im Flug sinken<br>
       <kbd>2× Leertaste</kbd> oder <kbd>F</kbd> fliegen · <kbd>Linksklick</kbd> abbauen · <kbd>Rechtsklick</kbd> bauen<br>
       <kbd>Mittelklick</kbd> Block übernehmen · <kbd>1</kbd>–<kbd>9</kbd> / <kbd>Mausrad</kbd> Slot · <kbd>E</kbd> Blöcke<br>
@@ -212,8 +289,8 @@
 
 <div id="inv" class="overlay hidden">
   <div class="card wide">
-    <h2>Blöcke</h2>
-    <p class="sub">Wähle unten einen Slot und klicke dann auf einen Block, um ihn hineinzulegen. <kbd>E</kbd> schließt.</p>
+    <div class="invHead"><h2>Blöcke</h2><button class="btn small primary" id="invDone">Fertig</button></div>
+    <p class="sub">Wähle unten einen Slot und tippe dann auf einen Block, um ihn hineinzulegen.</p>
     <div id="invGrid"></div>
     <div id="invBar"></div>
   </div>
@@ -249,6 +326,11 @@ const store = {
 const params = new URLSearchParams(location.search);
 const NOLOCK = params.has('nolock');   // Testmodus ohne Pointer-Lock
 const LOCAL = params.has('local');     // Testmodus: Tabs im selben Browser statt PeerJS
+const LOW = matchMedia('(pointer: coarse)').matches;   // Handy/Tablet: leichtere Grafik
+let touchMode = false;
+function enableTouch() { touchMode = true; document.body.classList.add('touch'); }
+if (LOW || params.has('touch')) enableTouch();
+addEventListener('touchstart', () => { if (!touchMode) enableTouch(); }, { passive: true, capture: true });
 const SIGNAL = params.get('signal');   // optional eigener PeerJS-Server, z. B. ?signal=localhost:9000
 const PROTO = 1, MAX_PLAYERS = 10;
 
@@ -519,8 +601,8 @@ function setBlock(x, y, z, b) {
 
 /* ═════════════════ Renderer & Materialien ═════════════════ */
 const canvas = $('view');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !LOW, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, LOW ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.autoClear = false;
@@ -608,7 +690,7 @@ function addBlock(bufs, b, x, y, z, ctx) {
   for (const f of FACES) {
     if (ctx) {
       const nb = getB(x + f.n[0], y + f.n[1], z + f.n[2]);
-      if (OPAQUE[nb] || (nb === b && d.same)) continue;
+      if (OPAQUE[nb] || (nb === b && (d.same || (LOW && b === LEAVES)))) continue;   // Handy: Laub innen weglassen
     }
     addFace(bufs[g], f, d.tex[f.s], x, y, z, top, ctx && (g === 0 || g === 1), g === 3);
   }
@@ -919,13 +1001,17 @@ function respawn() { me.pos.copy(G.spawn); me.vel.set(0, 0, 0); setFly(false); }
 function updatePlayer(dt) {
   const p = me.pos, v = me.vel, on = ui === 'play';
   for (let i = 0; i < 4 && collidesAt(p.x, p.y, p.z); i++) p.y = Math.floor(p.y) + 1;   // steckt fest → nach oben
-  const fwd = on ? (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) : 0, str = on ? (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) : 0;
-  const up = on && keys.Space, shift = on && (keys.ShiftLeft || keys.ShiftRight);
+  const kShift = keys.ShiftLeft || keys.ShiftRight;
+  const fwd = on ? clamp((keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0) - stick.y, -1, 1) : 0;
+  const str = on ? clamp((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0) + stick.x, -1, 1) : 0;
+  const up = on && (keys.Space || tk.jump || tk.tapJump), shift = on && (kShift || tk.down);
+  tk.tapJump = false;
+  const run = on && ((kShift && fwd > 0) || (stick.len > 0.97 && -stick.y > 0.7));
   const s = Math.sin(me.yaw), c = Math.cos(me.yaw);
   let wx = -s * fwd + c * str, wz = -c * fwd - s * str;
   const wl = Math.hypot(wx, wz); if (wl > 1) { wx /= wl; wz /= wl; }
   me.inWater = getB(Math.floor(p.x), Math.floor(p.y + 0.4), Math.floor(p.z)) === WATER;
-  me.sprint = shift && fwd > 0 && !me.fly;
+  me.sprint = run && !me.fly;
   let speed = me.fly ? 12 : me.sprint ? 5.8 : 4.3;
   if (me.inWater && !me.fly) speed *= 0.55;
   const acc = me.fly ? 8 : me.onGround ? 16 : me.inWater ? 8 : 5;
@@ -938,7 +1024,7 @@ function updatePlayer(dt) {
     v.y = Math.max(v.y, -3);
   } else {
     v.y -= 28 * dt;
-    if (up && me.onGround) v.y = 8.6;
+    if ((up || autoJump(wx, wz)) && me.onGround) v.y = 8.6;
     v.y = Math.max(v.y, -50);
   }
   const steps = Math.max(1, Math.ceil(Math.max(Math.abs(v.x), Math.abs(v.y), Math.abs(v.z)) * dt / 0.4));
@@ -956,7 +1042,14 @@ function updatePlayer(dt) {
   me.bob = me.onGround && hs > 0.5 ? me.bob + hs * dt * 1.7 : me.bob;
   me.bobAmp = lerp(me.bobAmp || 0, me.onGround ? Math.min(1, hs / 4.3) : 0, 1 - Math.exp(-10 * dt));
 }
-function setFly(f) { me.fly = f; document.body.classList.toggle('flying', f); if (f) me.vel.y = 0; }
+// Touch: läuft man mit dem Joystick gegen eine Stufe von einem Block, springt die Figur von selbst
+function autoJump(wx, wz) {
+  if (!touchMode || stick.len < 0.2 || !me.hitWall || !me.onGround) return false;
+  const l = Math.hypot(wx, wz) || 1, p = me.pos;
+  const x = Math.floor(p.x + wx / l * 0.55), z = Math.floor(p.z + wz / l * 0.55), y = Math.floor(p.y + 0.01);
+  return SOLID[getB(x, y, z)] && !SOLID[getB(x, y + 1, z)] && !SOLID[getB(x, y + 2, z)] && !SOLID[getB(Math.floor(p.x), y + 2, Math.floor(p.z))];
+}
+function setFly(f) { me.fly = f; document.body.classList.toggle('flying', f); $('tFly').textContent = f ? 'Landen' : 'Fliegen'; if (f) me.vel.y = 0; }
 
 let fovNow = 75;
 function updateCamera(dt) {
@@ -968,7 +1061,7 @@ function updateCamera(dt) {
   if (Math.abs(camera.fov - fovNow) > 0.01) { camera.fov = fovNow; camera.updateProjectionMatrix(); }
   camUnderwater = getB(Math.floor(camera.position.x), Math.floor(camera.position.y), Math.floor(camera.position.z)) === WATER;
   if (camUnderwater) { scene.fog.color.setRGB(0.08, 0.2, 0.45).multiplyScalar(light); scene.fog.near = 1; scene.fog.far = 22; }
-  else { scene.fog.near = 60; scene.fog.far = 150; }
+  else { scene.fog.near = LOW ? 45 : 60; scene.fog.far = LOW ? 120 : 150; }
 }
 
 /* ═════════════════ Zielen, Abbauen, Bauen ═════════════════ */
@@ -994,9 +1087,14 @@ function raycast(o, d, maxD) {
   }
   return null;
 }
+function screenTarget(sx, sy) {   // Block unter einem Finger
+  const d = new THREE.Vector3(sx / innerWidth * 2 - 1, -(sy / innerHeight) * 2 + 1, 0.5).unproject(camera).sub(camera.position).normalize();
+  return raycast(camera.position, d, 6);
+}
 function updateTarget() {
   camera.getWorldDirection(camDir);
-  target = ui === 'play' ? raycast(camera.position, camDir, 5.5) : null;
+  if (touchMode) target = ui === 'play' && look.id !== null && (!look.moved || look.breaking) ? screenTarget(look.x, look.y) : null;
+  else target = ui === 'play' ? raycast(camera.position, camDir, 5.5) : null;
   outline.visible = !!target;
   if (target) {
     const plant = BL[target.b].k === 'plant';
@@ -1007,16 +1105,16 @@ function updateTarget() {
 function boxHitsPlayer(x, y, z, p) {
   return x < p.x + PW && x + 1 > p.x - PW && y < p.y + PH && y + 1 > p.y && z < p.z + PW && z + 1 > p.z - PW;
 }
-function doBreak() {
-  if (!target) return;
-  const { x, y, z, b } = target;
+function doBreak(t = target) {
+  if (!t) return;
+  const { x, y, z, b } = t;
   if (BL[b].hard || y === 0) return;
   editBlock(x, y, z, AIR);
 }
-function doPlace() {
-  if (!target) return;
-  let x = target.x + target.nx, y = target.y + target.ny, z = target.z + target.nz;
-  if (BL[target.b].k === 'plant') ({ x, y, z } = target);
+function doPlace(t = target) {
+  if (!t) return;
+  let x = t.x + t.nx, y = t.y + t.ny, z = t.z + t.nz;
+  if (BL[t.b].k === 'plant') ({ x, y, z } = t);
   if (!inWorld(x, y, z) || y === 0) return;
   const cur = getB(x, y, z), b = hotbar[slot];
   if (cur !== AIR && cur !== WATER && BL[cur].k !== 'plant') return;
@@ -1450,7 +1548,7 @@ function leaveGame() {
 /* ═════════════════ UI-Zustand ═════════════════ */
 function setUI(s) {
   ui = s;
-  if (s !== 'play') { for (const k in keys) keys[k] = false; mouse.l = mouse.r = false; }
+  if (s !== 'play') { for (const k in keys) keys[k] = false; mouse.l = mouse.r = false; resetTouch(); }
   $('menu').classList.toggle('hidden', s !== 'menu');
   $('loading').classList.toggle('hidden', s !== 'loading');
   $('pause').classList.toggle('hidden', s !== 'pause');
@@ -1463,7 +1561,7 @@ function setUI(s) {
 }
 let resumeTimer = 0;
 function lock() {
-  if (NOLOCK) { setUI('play'); return; }
+  if (NOLOCK || touchMode) { setUI('play'); return; }
   setUI('resume');
   try {
     const p = canvas.requestPointerLock();
@@ -1505,6 +1603,7 @@ function slotEl(i, cls) {
   el.innerHTML = `<span>${i + 1}</span><img alt="">`;
   el.querySelector('img').src = ICONS[hotbar[i]];
   el.title = BL[hotbar[i]].n;
+  el.addEventListener('pointerdown', e => { if (ui === 'play') { e.preventDefault(); selectSlot(i); } });
   return el;
 }
 function renderHotbar() {
@@ -1621,9 +1720,8 @@ function command(text) {
 /* ═════════════════ Eingabe ═════════════════ */
 let lastSpace = 0, debugOn = false;
 addEventListener('keydown', e => {
-  if (ui === 'chat') {
-    if (e.code === 'Enter') { e.preventDefault(); sendChat(); closeChat(); }
-    else if (e.code === 'Escape') { e.preventDefault(); closeChat(); }
+  if (ui === 'chat') {   // Enter schickt das Formular ab (siehe chatForm)
+    if (e.key === 'Escape') { e.preventDefault(); closeChat(); }
     return;
   }
   if (ui === 'inv') {
@@ -1702,13 +1800,14 @@ addEventListener('resize', () => {
   };
   $('joinBtn').onclick = join;
   codeIn.addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
-  if (matchMedia('(pointer: coarse)').matches && !matchMedia('(pointer: fine)').matches)
-    $('menuErr').textContent = 'Hinweis: Oliver Craft wird mit Maus und Tastatur gespielt (am Computer).';
   const hash = location.hash.slice(1).toUpperCase();
   if (/^[A-Z0-9]{5}$/.test(hash)) { codeIn.value = hash; $('menuErr').textContent = ''; setTimeout(() => (nick.value ? $('joinBtn') : nick).focus(), 50); }
   $('loadBack').onclick = () => leaveGame();
   $('msgBtn').onclick = () => leaveGame();
-  $('resume').onclick = () => lock();
+  $('resume').onclick = () => { if (touchMode) goFullscreen(); lock(); };
+  $('invDone').onclick = () => lock();
+  $('chatForm').addEventListener('submit', e => { e.preventDefault(); if (ui !== 'chat') return; sendChat(); closeChat(); });
+  $('chatin').addEventListener('blur', () => setTimeout(() => { if (ui === 'chat') closeChat(); }, 0));
   $('leave').onclick = () => {
     if (G.role === 'host' && remotes.size && !confirm('Wenn du gehst, endet das Spiel für alle Mitspieler. Deine Welt wird gespeichert.')) return;
     leaveGame();
@@ -1717,6 +1816,101 @@ addEventListener('resize', () => {
   sens.value = settings.sens; vol.value = settings.vol;
   sens.oninput = () => { settings.sens = +sens.value; store.set('craft.sens', sens.value); };
   vol.oninput = () => { settings.vol = +vol.value; store.set('craft.vol', vol.value); };
+}
+
+/* ═════════════════ Touch-Steuerung ═════════════════ */
+// Linker Daumen: Joystick · rechts wischen: umsehen · antippen: bauen · gedrückt halten: abbauen
+const HOLD_MS = 320, STICK_R = 56;
+const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0, len: 0 };
+const look = { id: null, x: 0, y: 0, sx: 0, sy: 0, t0: 0, moved: false, breaking: false, last: 0 };
+const tk = { jump: false, down: false, tapJump: false };   // tapJump: auch ganz kurze Tipper zählen
+const tLayer = $('tLayer'), tStick = $('tStick'), tKnob = $('tKnob'), tRing = $('tRing');
+function setStick(dx, dy) {
+  const l = Math.hypot(dx, dy), n = Math.min(1, l / STICK_R), s = l > STICK_R ? STICK_R / l : 1;
+  tKnob.style.transform = `translate(${dx * s}px, ${dy * s}px)`;
+  const m = n < 0.15 ? 0 : (n - 0.15) / 0.85;   // kleine Totzone in der Mitte
+  stick.len = n;
+  stick.x = l ? dx / l * m : 0; stick.y = l ? dy / l * m : 0;
+}
+function ring(cls, x, y) {
+  tRing.className = cls || '';
+  if (x !== undefined) { tRing.style.left = x + 'px'; tRing.style.top = y + 'px'; }
+}
+function releaseStick() {
+  stick.id = null; setStick(0, 0);
+  tStick.classList.remove('on'); tStick.style.left = tStick.style.top = '';
+}
+function resetTouch() {
+  releaseStick();
+  look.id = null; look.breaking = false; ring('');
+  tk.jump = tk.down = tk.tapJump = false;
+  document.querySelectorAll('.tbtn.on').forEach(b => b.classList.remove('on'));
+}
+tLayer.addEventListener('pointerdown', e => {
+  if (ui !== 'play') return;
+  e.preventDefault();
+  if (stick.id === null && e.clientX < innerWidth * 0.42 && e.clientY > innerHeight * 0.3) {
+    stick.id = e.pointerId; stick.ox = e.clientX; stick.oy = e.clientY;
+    tStick.style.left = e.clientX + 'px'; tStick.style.top = e.clientY + 'px';
+    tStick.classList.add('on'); setStick(0, 0);
+  } else if (look.id === null) {
+    Object.assign(look, { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, t0: performance.now(), moved: false, breaking: false, last: 0 });
+    ring('', e.clientX, e.clientY);
+    void tRing.offsetWidth;   // Animation neu starten
+    ring('charge');
+  } else return;
+  try { tLayer.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+});
+tLayer.addEventListener('pointermove', e => {
+  if (e.pointerId === stick.id) setStick(e.clientX - stick.ox, e.clientY - stick.oy);
+  else if (e.pointerId === look.id) {
+    const k = 0.0055 * settings.sens;
+    me.yaw -= (e.clientX - look.x) * k;
+    me.pitch = clamp(me.pitch - (e.clientY - look.y) * k, -1.55, 1.55);
+    look.x = e.clientX; look.y = e.clientY;
+    if (!look.moved && Math.hypot(look.x - look.sx, look.y - look.sy) > 14) { look.moved = true; if (!look.breaking) ring(''); }
+    if (look.breaking) ring('active', look.x, look.y);
+  }
+});
+function endPointer(e) {
+  if (e.pointerId === stick.id) releaseStick();
+  else if (e.pointerId === look.id) {
+    if (e.type === 'pointerup' && ui === 'play' && !look.moved && !look.breaking && performance.now() - look.t0 < HOLD_MS) doPlace(screenTarget(look.x, look.y));
+    look.id = null; look.breaking = false; ring('');
+  }
+}
+tLayer.addEventListener('pointerup', endPointer);
+tLayer.addEventListener('pointercancel', endPointer);
+function updateTouch(now) {
+  if (look.id === null) return;
+  if (!look.breaking && !look.moved && now - look.t0 >= HOLD_MS) { look.breaking = true; look.last = 0; ring('active', look.x, look.y); }
+  if (look.breaking && now - look.last > 240) { look.last = now; doBreak(screenTarget(look.x, look.y)); }
+}
+function holdButton(el, down, up) {
+  el.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (ui !== 'play') return;
+    try { el.setPointerCapture(e.pointerId); } catch (err) { /* egal */ }
+    el.classList.add('on'); down();
+  });
+  const end = () => { el.classList.remove('on'); up(); };
+  el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end);
+}
+holdButton($('tJump'), () => {
+  tk.jump = tk.tapJump = true;
+  const now = performance.now();
+  if (now - lastSpace < 300) setFly(!me.fly);
+  lastSpace = now;
+}, () => { tk.jump = false; });
+holdButton($('tDown'), () => { tk.down = true; }, () => { tk.down = false; });
+$('tFly').addEventListener('click', () => { if (ui === 'play') setFly(!me.fly); });
+$('tMenu').addEventListener('click', () => { if (ui === 'play') setUI('pause'); });
+$('tChat').addEventListener('click', () => { if (ui === 'play') openChat(); });
+$('tInv').addEventListener('click', () => { if (ui === 'play') unlockFor('inv'); });
+function goFullscreen() {   // Android: Vollbild ohne Browserleisten (iPhone kann das nicht)
+  const d = document.documentElement;
+  if (document.fullscreenElement || !d.requestFullscreen) return;
+  d.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
 }
 
 /* ═════════════════ Hauptschleife ═════════════════ */
@@ -1738,6 +1932,7 @@ function frame(now) {
     if (ui === 'play') {
       if (mouse.l && now - mouse.last > 230) { mouse.last = now; doBreak(); }
       if (mouse.r && now - mouse.last > 230) { mouse.last = now; doPlace(); }
+      updateTouch(now);
     }
     updatePlayer(dt);
     updateCamera(dt);
@@ -1760,7 +1955,7 @@ function frame(now) {
   await buildAll(() => {});
 })();
 requestAnimationFrame(frame);
-if (params.has('test')) window.oliverCraft = { G, me, remotes, getB, setBlock: editBlock, world, edits, setUI, get ui() { return ui; } };
+if (params.has('test')) window.oliverCraft = { G, me, remotes, getB, setBlock: editBlock, world, edits, setUI, get ui() { return ui; }, get slot() { return slot; }, get touchMode() { return touchMode; } };
 </script>
 </body>
 </html>
