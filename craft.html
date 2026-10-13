@@ -103,9 +103,21 @@
   .slot{width:52px;height:52px;border:2px solid rgba(255,255,255,.12);border-radius:9px;position:relative;display:grid;place-items:center;padding:4px}
   .slot.sel{border-color:#fff;background:rgba(255,255,255,.14)}
   .slot span{position:absolute;left:4px;top:1px;font-size:10px;color:rgba(255,255,255,.65);text-shadow:0 1px 2px #000}
-  #bname{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);font-size:16px;font-weight:650;text-shadow:0 2px 4px #000;
+  #bname{position:fixed;left:50%;bottom:106px;transform:translateX(-50%);font-size:16px;font-weight:650;text-shadow:0 2px 4px #000;
     opacity:0;transition:opacity .4s}
   #bname.on{opacity:1;transition:none}
+  #hearts{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);display:flex;gap:2px;filter:drop-shadow(0 1px 1px rgba(0,0,0,.6))}
+  #hearts i{width:20px;height:18px;background-size:100% 100%;image-rendering:pixelated}
+  #hearts.shake{animation:hshake .3s}
+  @keyframes hshake{25%{transform:translate(calc(-50% - 4px),0)}75%{transform:translate(calc(-50% + 4px),0)}}
+  #hearts.low i:nth-child(odd){animation:hlow .45s infinite alternate}
+  @keyframes hlow{to{transform:translateY(-2px)}}
+  body.peaceful #hearts{display:none}
+  #dmg{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 40%,rgba(200,0,0,.65) 100%);opacity:0}
+  #dmg.on{animation:dmgf .7s}
+  @keyframes dmgf{from{opacity:1}to{opacity:0}}
+  #dead{background:rgba(90,0,0,.5)}
+  .slider input[type=checkbox]{width:22px;height:22px}
   #badge{position:fixed;left:12px;top:12px;padding:7px 12px;border-radius:10px;background:rgba(0,0,0,.45);font-size:14px;
     border:1px solid rgba(255,255,255,.1);text-shadow:0 1px 2px #000}
   #badge b{letter-spacing:.12em}
@@ -134,6 +146,9 @@
     .slot{width:34px;height:34px;padding:2px;border-radius:7px}
     .slot span{display:none}
     #chat{bottom:60px}
+    #hearts{bottom:58px}
+    #hearts i{width:15px;height:14px}
+    #bname{bottom:84px}
   }
 
   /* Touch-Steuerung (Handy/Tablet) */
@@ -149,6 +164,9 @@
   body.touch #hotbar{pointer-events:auto;bottom:max(8px,env(safe-area-inset-bottom))}
   body.touch .slot{width:min(42px,calc((100vw - 64px) / 9));height:min(42px,calc((100vw - 64px) / 9));padding:3px}
   body.touch .slot span{display:none}
+  body.touch #hearts{bottom:66px}
+  body.touch #hearts i{width:16px;height:15px}
+  body.touch #bname{bottom:92px}
   body.touch #badge{left:max(12px,env(safe-area-inset-left))}
   body.touch #chat{bottom:auto;top:56px;left:max(12px,env(safe-area-inset-left));display:flex;flex-direction:column-reverse}
   body.touch #chatlog{max-height:30vh}
@@ -190,6 +208,7 @@
 <canvas id="view"></canvas>
 
 <div id="hud">
+  <div id="dmg"></div>
   <div id="cross"></div>
   <div id="badge"></div>
   <div id="flyTag">✈ Fliegen</div>
@@ -200,6 +219,7 @@
     <form id="chatForm" autocomplete="off"><input id="chatin" type="text" maxlength="120" autocomplete="off" spellcheck="false" enterkeyhint="send"
       placeholder="Nachricht … (Enter senden, Esc abbrechen)"></form></div>
   <div id="bname"></div>
+  <div id="hearts"></div>
   <div id="hotbar"></div>
 </div>
 
@@ -270,6 +290,8 @@
     <div class="plist" id="pPlayers"></div>
     <label class="slider">Empfindlichkeit <input type="range" id="sens" min="0.2" max="3" step="0.05"></label>
     <label class="slider">Lautstärke <input type="range" id="vol" min="0" max="1" step="0.05"></label>
+    <label class="slider" id="foesRow">Gegner in der Nacht (Zombies, Spinnen) <input type="checkbox" id="foes"></label>
+    <p class="status" id="foesInfo" hidden></p>
     <button class="btn primary" id="resume" style="margin-top:14px">Weiterspielen</button>
     <button class="btn ghost" id="leave">Spiel verlassen</button>
     <div class="help touchOnly">
@@ -293,6 +315,14 @@
     <p class="sub">Wähle unten einen Slot und tippe dann auf einen Block, um ihn hineinzulegen.</p>
     <div id="invGrid"></div>
     <div id="invBar"></div>
+  </div>
+</div>
+
+<div id="dead" class="overlay hidden">
+  <div class="card center">
+    <h2>Du wurdest besiegt!</h2>
+    <p class="sub" id="deadText"></p>
+    <button class="btn primary" id="reviveBtn">Wiederbeleben</button>
   </div>
 </div>
 
@@ -332,7 +362,7 @@ function enableTouch() { touchMode = true; document.body.classList.add('touch');
 if (LOW || params.has('touch')) enableTouch();
 addEventListener('touchstart', () => { if (!touchMode) enableTouch(); }, { passive: true, capture: true });
 const SIGNAL = params.get('signal');   // optional eigener PeerJS-Server, z. B. ?signal=localhost:9000
-const PROTO = 1, MAX_PLAYERS = 10;
+const PROTO = 2, MAX_PLAYERS = 10;
 
 function mulberry32(a) {
   return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
@@ -827,11 +857,12 @@ scene.add(hemi, sunLight);
 const DAY_LEN = 720;   // Sekunden für einen ganzen Tag
 const SKY_DAY = new THREE.Color(0x8ec9ff), SKY_NIGHT = new THREE.Color(0x0a1022), SKY_SET = new THREE.Color(0xf0a070);
 const skyCol = new THREE.Color();
-let dayT = 0.3, light = 1;
+let dayT = 0.3, light = 1, dayK = 1;   // dayK: 0 = Nacht, 1 = Tag
 const tinted = [matOpaque, matCut, matWater, oceanMat, seabedMat];
 function updateSky(dt) {
   dayT = (dayT + dt / DAY_LEN) % 1;
-  const ang = (dayT - 0.25) * Math.PI * 2, elev = Math.sin(ang), dayK = smooth(-0.18, 0.22, elev);
+  const ang = (dayT - 0.25) * Math.PI * 2, elev = Math.sin(ang);
+  dayK = smooth(-0.18, 0.22, elev);
   light = 0.3 + 0.7 * dayK;
   skyCol.copy(SKY_NIGHT).lerp(SKY_DAY, dayK).lerp(SKY_SET, clamp(1 - Math.abs(elev) / 0.25, 0, 1) * 0.5);
   if (!camUnderwater) { scene.background = skyCol; scene.fog.color.copy(skyCol); }
@@ -858,32 +889,34 @@ pMesh.frustumCulled = false; pMesh.count = 0;
 scene.add(pMesh);
 const parts = [];
 const tmpM = new THREE.Matrix4(), tmpC = new THREE.Color();
-function burst(x, y, z, b) {
-  const c = AVG[b];
-  for (let i = 0; i < 14; i++) {
+// o: spread (Streuung), h (Höhe), speed, up (Auftrieb), g (Schwerkraft, negativ = steigt wie Rauch), life
+function puff(x, y, z, c, n, o = {}) {
+  const sp = o.spread ?? 0.3, v = o.speed ?? 4, grav = o.g ?? 20;
+  for (let i = 0; i < n; i++) {
     if (parts.length >= PMAX) parts.shift();
-    const k = 0.75 + Math.random() * 0.4, life = 0.45 + Math.random() * 0.5;
-    parts.push({ x: x + 0.2 + Math.random() * 0.6, y: y + 0.2 + Math.random() * 0.6, z: z + 0.2 + Math.random() * 0.6,
-      vx: (Math.random() - 0.5) * 4, vy: Math.random() * 4 + 1, vz: (Math.random() - 0.5) * 4, life, max: life,
-      r: c[0] * k, g: c[1] * k, b: c[2] * k });
+    const k = 0.75 + Math.random() * 0.4, life = (o.life ?? 0.45) + Math.random() * 0.5;
+    parts.push({ x: x + (Math.random() - 0.5) * sp * 2, y: y + Math.random() * (o.h ?? 0.6), z: z + (Math.random() - 0.5) * sp * 2,
+      vx: (Math.random() - 0.5) * v, vy: Math.random() * v * (grav < 0 ? 0.25 : 1) + (o.up ?? 1), vz: (Math.random() - 0.5) * v,
+      life, max: life, grav, r: c[0] * k, gr: c[1] * k, b: c[2] * k });
   }
 }
+const burst = (x, y, z, b) => puff(x + 0.5, y + 0.2, z + 0.5, AVG[b], 14);
 function updateParticles(dt) {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i];
     p.life -= dt;
     if (p.life <= 0) { parts.splice(i, 1); continue; }
-    p.vy -= 20 * dt;
+    p.vy -= p.grav * dt;
     p.x += p.vx * dt; p.z += p.vz * dt;
     const ny = p.y + p.vy * dt;
-    if (SOLID[getB(Math.floor(p.x), Math.floor(ny - 0.05), Math.floor(p.z))]) { p.vy = 0; p.vx *= 0.7; p.vz *= 0.7; }
+    if (p.grav > 0 && SOLID[getB(Math.floor(p.x), Math.floor(ny - 0.05), Math.floor(p.z))]) { p.vy = 0; p.vx *= 0.7; p.vz *= 0.7; }
     else p.y = ny;
   }
   for (let i = 0; i < parts.length; i++) {
     const p = parts[i], s = Math.min(1, p.life / p.max * 2.5);
     tmpM.makeScale(s, s, s).setPosition(p.x, p.y, p.z);
     pMesh.setMatrixAt(i, tmpM);
-    pMesh.setColorAt(i, tmpC.setRGB(p.r, p.g, p.b));
+    pMesh.setColorAt(i, tmpC.setRGB(p.r, p.gr, p.b));
   }
   pMesh.count = parts.length;
   pMesh.instanceMatrix.needsUpdate = true;
@@ -896,13 +929,38 @@ const settings = {
   vol: parseFloat(store.get('craft.vol', '0.6')),
 };
 if (isNaN(settings.vol)) settings.vol = 0.6;
-let ac = null, noiseBuf = null;
+let ac = null, noiseBuf = null, vmul = 1;
+function tone(t, { type = 'sawtooth', f0, f1 = f0, dur, vol, lp = 2000, vib = 0 }) {
+  const o = ac.createOscillator(), g = ac.createGain(), f = ac.createBiquadFilter(), v = Math.max(0.0002, vol * vmul);
+  o.type = type; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+  if (vib) { const l = ac.createOscillator(), lg = ac.createGain(); l.frequency.value = 26; lg.gain.value = vib; l.connect(lg); lg.connect(o.frequency); l.start(t); l.stop(t + dur); }
+  f.type = 'lowpass'; f.frequency.value = lp;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(v, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(f); f.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+function noise(t, { dur, vol, type = 'lowpass', freq = 1000 }) {
+  const src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+  src.buffer = noiseBuf; f.type = type; f.frequency.value = freq;
+  g.gain.setValueAtTime(Math.max(0.0002, vol * vmul), t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(ac.destination); src.start(t); src.stop(t + dur + 0.02);
+}
+const VOICES = {   // Tierstimmen & Effekte, alles synthetisch
+  oink: t => { tone(t, { type: 'square', f0: 260, f1: 180, dur: 0.12, vol: 0.08, lp: 900 }); tone(t + 0.16, { type: 'square', f0: 240, f1: 170, dur: 0.12, vol: 0.08, lp: 900 }); },
+  baa: t => tone(t, { f0: 380, f1: 330, dur: 0.5, vol: 0.08, lp: 1800, vib: 25 }),
+  moo: t => tone(t, { f0: 130, f1: 95, dur: 0.9, vol: 0.13, lp: 600, vib: 4 }),
+  cluck: t => { for (let i = 0; i < 3; i++) tone(t + i * 0.09, { type: 'square', f0: 900, f1: 600, dur: 0.05, vol: 0.04, lp: 2500 }); },
+  groan: t => tone(t, { f0: 105, f1: 70, dur: 0.9, vol: 0.13, lp: 500, vib: 6 }),
+  hiss: t => noise(t, { dur: 0.45, vol: 0.1, type: 'highpass', freq: 2500 }),
+  ouch: t => { tone(t, { type: 'sine', f0: 300, f1: 140, dur: 0.18, vol: 0.25, lp: 1500 }); noise(t, { dur: 0.08, vol: 0.2, freq: 900 }); },
+  hit: t => noise(t, { dur: 0.1, vol: 0.3, freq: 1200 }),
+  poof: t => noise(t, { dur: 0.3, vol: 0.2, type: 'bandpass', freq: 700 }),
+};
 function sfx(kind, x, y, z) {
   if (settings.vol <= 0) return;
   try {
     if (!ac) {
       ac = new AudioContext();
-      noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.3, ac.sampleRate);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
       const d = noiseBuf.getChannelData(0);
       for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
     }
@@ -914,6 +972,8 @@ function sfx(kind, x, y, z) {
     if (d > 32) return;
     vol *= 1 - d / 32;
   }
+  vmul = vol;
+  if (VOICES[kind]) { VOICES[kind](ac.currentTime); return; }
   const t = ac.currentTime, gain = ac.createGain();
   gain.connect(ac.destination);
   if (kind === 'pop') {
@@ -973,9 +1033,9 @@ function makeAvatar(name, color) {
 /* ═════════════════ Spieler & Zustand ═════════════════ */
 const PW = 0.3, PH = 1.8, EYE = 1.62;
 const me = { name: '', color: COLORS[0], pos: new THREE.Vector3(), vel: new THREE.Vector3(), yaw: 0, pitch: 0,
-  onGround: false, fly: false, inWater: false, hitWall: false, sprint: false, act: 0, bob: 0, bobAmp: 0 };
+  onGround: false, fly: false, inWater: false, hitWall: false, sprint: false, act: 0, bob: 0, bobAmp: 0, hp: 20, dead: false };
 const G = { role: null, myId: 0, seed: 0, code: '', online: false, offline: '', conn: null, link: null,
-  built: false, playing: false, nextId: 1, spawn: new THREE.Vector3() };
+  built: false, playing: false, nextId: 1, spawn: new THREE.Vector3(), foes: true };
 const remotes = new Map();
 let ui = 'menu', locked = false, camUnderwater = false;
 const keys = Object.create(null);
@@ -983,20 +1043,23 @@ const mouse = { l: false, r: false, last: 0 };
 let hotbar = [GRASS, DIRT, STONE, COBBLE, PLANKS, LOG, GLASS, BRICK, LAMP], slot = 0;
 try { const h = JSON.parse(store.get('craft.hotbar', 'null')); if (Array.isArray(h) && h.length === 9 && h.every(b => Number.isInteger(b) && b > 0 && b < NB && b !== BEDROCK)) hotbar = h; } catch (e) { /* Standard */ }
 
-function collidesAt(px, py, pz) {
-  const x0 = Math.floor(px - PW), x1 = Math.floor(px + PW), y0 = Math.floor(py), y1 = Math.floor(py + PH), z0 = Math.floor(pz - PW), z1 = Math.floor(pz + PW);
+// Quader mit halber Breite hw und Höhe h (Füße bei y) – für Spieler, Tiere und Gegner
+function boxCollides(px, py, pz, hw, h) {
+  const x0 = Math.floor(px - hw), x1 = Math.floor(px + hw), y0 = Math.floor(py), y1 = Math.floor(py + h), z0 = Math.floor(pz - hw), z1 = Math.floor(pz + hw);
   for (let y = y0; y <= y1; y++) for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) if (SOLID[getB(x, y, z)]) return true;
   return false;
 }
-function moveAxis(ax, d) {
-  const p = me.pos, old = p[ax];
+function moveBox(p, ax, d, hw, h) {   // true = an einen Block gestoßen
+  const old = p[ax];
   p[ax] += d;
-  if (!collidesAt(p.x, p.y, p.z)) return false;
-  if (ax === 'y') p.y = d < 0 ? Math.floor(p.y) + 1 : Math.floor(p.y + PH) - PH - 0.001;
-  else p[ax] = d > 0 ? Math.floor(p[ax] + PW) - PW - 0.001 : Math.floor(p[ax] - PW) + 1 + PW + 0.001;
-  if (collidesAt(p.x, p.y, p.z)) p[ax] = old;
+  if (!boxCollides(p.x, p.y, p.z, hw, h)) return false;
+  if (ax === 'y') p.y = d < 0 ? Math.floor(p.y) + 1 : Math.floor(p.y + h) - h - 0.001;
+  else p[ax] = d > 0 ? Math.floor(p[ax] + hw) - hw - 0.001 : Math.floor(p[ax] - hw) + 1 + hw + 0.001;
+  if (boxCollides(p.x, p.y, p.z, hw, h)) p[ax] = old;
   return true;
 }
+const collidesAt = (x, y, z) => boxCollides(x, y, z, PW, PH);
+const moveAxis = (ax, d) => moveBox(me.pos, ax, d, PW, PH);
 function respawn() { me.pos.copy(G.spawn); me.vel.set(0, 0, 0); setFly(false); }
 function updatePlayer(dt) {
   const p = me.pos, v = me.vel, on = ui === 'play';
@@ -1055,7 +1118,8 @@ let fovNow = 75;
 function updateCamera(dt) {
   const bob = Math.sin(me.bob * 2) * 0.05 * me.bobAmp;
   camera.position.set(me.pos.x, me.pos.y + EYE + bob, me.pos.z);
-  camera.rotation.set(me.pitch, me.yaw, 0);
+  hurtRoll = Math.max(0, hurtRoll - dt * 4);
+  camera.rotation.set(me.pitch, me.yaw, Math.sin(hurtRoll * Math.PI) * 0.08);
   camera.updateMatrixWorld();
   fovNow = lerp(fovNow, me.sprint || (me.fly && Math.hypot(me.vel.x, me.vel.z) > 8) ? 83 : 75, 1 - Math.exp(-8 * dt));
   if (Math.abs(camera.fov - fovNow) > 0.01) { camera.fov = fovNow; camera.updateProjectionMatrix(); }
@@ -1080,17 +1144,15 @@ function raycast(o, d, maxD) {
   let nx = 0, ny = 0, nz = 0, t = 0;
   while (t <= maxD) {
     const b = getB(x, y, z);
-    if (TARGET[b] && inWorld(x, y, z)) return { x, y, z, b, nx, ny, nz };
+    if (TARGET[b] && inWorld(x, y, z)) return { x, y, z, b, nx, ny, nz, t };
     if (tmx < tmy && tmx < tmz) { x += sx; t = tmx; tmx += tdx; nx = -sx; ny = nz = 0; }
     else if (tmy < tmz) { y += sy; t = tmy; tmy += tdy; ny = -sy; nx = nz = 0; }
     else { z += sz; t = tmz; tmz += tdz; nz = -sz; nx = ny = 0; }
   }
   return null;
 }
-function screenTarget(sx, sy) {   // Block unter einem Finger
-  const d = new THREE.Vector3(sx / innerWidth * 2 - 1, -(sy / innerHeight) * 2 + 1, 0.5).unproject(camera).sub(camera.position).normalize();
-  return raycast(camera.position, d, 6);
-}
+const screenDir = (sx, sy) => new THREE.Vector3(sx / innerWidth * 2 - 1, -(sy / innerHeight) * 2 + 1, 0.5).unproject(camera).sub(camera.position).normalize();
+const screenTarget = (sx, sy) => raycast(camera.position, screenDir(sx, sy), 6);   // Block unter einem Finger
 function updateTarget() {
   camera.getWorldDirection(camDir);
   if (touchMode) target = ui === 'play' && look.id !== null && (!look.moved || look.breaking) ? screenTarget(look.x, look.y) : null;
@@ -1121,7 +1183,8 @@ function doPlace(t = target) {
   if (BL[b].k === 'plant' && !SOLID[getB(x, y - 1, z)]) return;
   if (SOLID[b]) {
     if (boxHitsPlayer(x, y, z, me.pos)) return;
-    for (const R of remotes.values()) if (boxHitsPlayer(x, y, z, R.cur)) return;
+    for (const R of remotes.values()) if (!R.dead && boxHitsPlayer(x, y, z, R.cur)) return;
+    if (blockHitsMob(x, y, z)) return;
   }
   editBlock(x, y, z, b);
 }
@@ -1167,6 +1230,465 @@ function updateHand(dt) {
   handMesh.position.set(0.62 + bx - sw * 0.12, -0.58 - by - sw * 0.1, -1.05 - sw * 0.1);
   handMesh.rotation.set(sw * -0.5, plant ? 0 : -0.75, 0);
   handMesh.scale.setScalar(plant ? 0.55 : 0.42);
+}
+
+/* ═════════════════ Tiere & Gegner ═════════════════ */
+// Der Host simuliert alle Tiere und Gegner und schickt ~10× pro Sekunde einen Schnappschuss.
+// Alle Spieler (auch der Host) zeichnen sie aus diesen Schnappschüssen mit Interpolation.
+const MOB = {
+  pig:     { n: 'Schwein', hp: 10, hw: 0.42, h: 0.9,  speed: 1.3, run: 3.4, voice: 'oink' },
+  sheep:   { n: 'Schaf',   hp: 8,  hw: 0.42, h: 1.3,  speed: 1.2, run: 3.2, voice: 'baa' },
+  cow:     { n: 'Kuh',     hp: 10, hw: 0.45, h: 1.45, speed: 1.1, run: 3.0, voice: 'moo' },
+  chicken: { n: 'Huhn',    hp: 4,  hw: 0.22, h: 0.75, speed: 1.0, run: 3.0, voice: 'cluck' },
+  zombie:  { n: 'Zombie',  hp: 20, hw: 0.3,  h: 1.85, speed: 2.4, foe: true, dmg: 2, atkCd: 1.0, voice: 'groan', nom: 'Ein Zombie', dat: 'einem Zombie' },
+  spider:  { n: 'Spinne',  hp: 14, hw: 0.6,  h: 0.9,  speed: 3.5, foe: true, dmg: 2, atkCd: 0.8, voice: 'hiss', nom: 'Eine Spinne', dat: 'einer Spinne' },
+};
+const MOB_TYPES = Object.keys(MOB), ANIMALS = ['pig', 'sheep', 'cow', 'chicken'];
+const HIT_DMG = 5, ANIMAL_TARGET = 18;
+
+// Modelle aus Quadern: [Breite, Höhe, Tiefe, x, y, z, Farbe] – Blickrichtung −z, Füße bei y = 0
+const sym = (w, h, d, x, y, z, c) => [[w, h, d, -x, y, z, c], [w, h, d, x, y, z, c]];
+const legs4 = (w, h, x, y, z, c) => [[-1, -1, 1], [1, -1, -1], [-1, 1, -1], [1, 1, 1]].map(([sx, sz, ph]) =>
+  ({ p: [sx * x, y, sz * z], s: [w, h, w], o: [0, -h / 2, 0], c, ax: 'x', amp: 0.7, ph }));
+const MODELS = {
+  pig: { body: [[0.6, 0.5, 0.9, 0, 0.55, 0.05, 0xf2a7b0], [0.5, 0.5, 0.45, 0, 0.72, -0.6, 0xf2a7b0], [0.26, 0.18, 0.06, 0, 0.64, -0.85, 0xe07f8e],
+    ...sym(0.07, 0.07, 0.02, 0.14, 0.84, -0.83, 0x1a1a1a)], limbs: legs4(0.18, 0.3, 0.17, 0.3, 0.3, 0xf2a7b0) },
+  sheep: { body: [[0.7, 0.62, 1.0, 0, 0.86, 0.05, 0xefefea], [0.38, 0.4, 0.42, 0, 1.02, -0.6, 0xd8c9b0], [0.44, 0.16, 0.34, 0, 1.24, -0.57, 0xefefea],
+    ...sym(0.07, 0.07, 0.02, 0.11, 1.08, -0.815, 0x1a1a1a)], limbs: legs4(0.16, 0.55, 0.2, 0.55, 0.32, 0xd8c9b0) },
+  cow: { body: [[0.75, 0.7, 1.15, 0, 1.05, 0.08, 0x4b3221], [0.02, 0.36, 0.46, 0.385, 1.07, 0.18, 0xf2f2f2], [0.02, 0.3, 0.36, -0.385, 1.0, -0.12, 0xf2f2f2],
+    [0.42, 0.02, 0.4, 0.08, 1.405, 0.3, 0xf2f2f2], [0.55, 0.5, 0.4, 0, 1.28, -0.68, 0x4b3221], [0.38, 0.2, 0.06, 0, 1.12, -0.9, 0xe8c2a8],
+    ...sym(0.08, 0.14, 0.08, 0.3, 1.58, -0.7, 0xe9e2cf), ...sym(0.07, 0.07, 0.02, 0.15, 1.36, -0.885, 0x111111)],
+    limbs: legs4(0.2, 0.7, 0.22, 0.7, 0.42, 0x4b3221) },
+  chicken: { body: [[0.36, 0.36, 0.46, 0, 0.44, 0.04, 0xf5f5f0], [0.24, 0.34, 0.2, 0, 0.74, -0.2, 0xf5f5f0], [0.18, 0.08, 0.1, 0, 0.72, -0.35, 0xf0a020],
+    [0.08, 0.1, 0.05, 0, 0.62, -0.33, 0xd02020], ...sym(0.05, 0.05, 0.02, 0.08, 0.81, -0.305, 0x111111)],
+    limbs: [...[-1, 1].map(s => ({ p: [s * 0.08, 0.26, 0.04], s: [0.05, 0.26, 0.05], o: [0, -0.13, 0], c: 0xf0a020, ax: 'x', amp: 0.8, ph: s })),
+      ...[-1, 1].map(s => ({ p: [s * 0.2, 0.6, 0.04], s: [0.05, 0.26, 0.34], o: [0, -0.13, 0], c: 0xf5f5f0, wing: s }))] },
+  zombie: { scale: 0.93, body: [[0.5, 0.75, 0.26, 0, 1.125, 0, 0x2a9d9b], [0.5, 0.5, 0.5, 0, 1.75, 0, 0x5d9c47], [0.52, 0.12, 0.52, 0, 1.97, 0, 0x3f6f30],
+    ...sym(0.1, 0.06, 0.02, 0.11, 1.78, -0.255, 0x10180e), [0.22, 0.04, 0.02, 0, 1.62, -0.255, 0x2c4a22]],
+    limbs: [...[-1, 1].map(s => ({ p: [s * 0.125, 0.75, 0], s: [0.24, 0.75, 0.24], o: [0, -0.375, 0], c: 0x3d3a78, ax: 'x', amp: 0.7, ph: s })),
+      ...[-1, 1].map(s => ({ p: [s * 0.37, 1.45, 0], s: [0.24, 0.75, 0.24], o: [0, -0.375, 0], c: 0x5d9c47, ax: 'x', amp: 0.12, ph: -s, rest: [1.45, 0, 0], arm: true }))] },
+  spider: { body: [[0.85, 0.6, 0.9, 0, 0.6, 0.52, 0x2c241e], [0.45, 0.38, 0.38, 0, 0.52, 0.02, 0x3b3029], [0.55, 0.48, 0.45, 0, 0.58, -0.38, 0x2c241e]],
+    eyes: [...sym(0.1, 0.08, 0.02, 0.12, 0.66, -0.61, 0xff2020), ...sym(0.07, 0.06, 0.02, 0.22, 0.56, -0.61, 0xff2020)],
+    limbs: [-1, 1].flatMap(s => [0, 1, 2, 3].map(k => ({ p: [s * 0.2, 0.52, -0.15 + k * 0.1], s: [0.95, 0.07, 0.07], o: [s * 0.475, 0, 0], c: 0x241d18,
+      ax: 'y', amp: 0.35, ph: (k + (s > 0 ? 1 : 0)) % 2 ? 1 : -1, rest: [0, s * (1.5 - k) * 0.32, -s * 0.6] }))) },
+};
+const mobGeo = new Map(), ZERO3 = [0, 0, 0];
+function partsGeo(key, parts) {   // alle Quader eines Körperteils zu einer Geometrie mit Vertexfarben zusammenfassen
+  let geo = mobGeo.get(key);
+  if (geo) return geo;
+  const pos = [], nor = [], col = [], ind = [], c = new THREE.Color();
+  for (const [w, h, d, x, y, z, hex] of parts) {
+    const g = new THREE.BoxGeometry(w, h, d).translate(x, y, z), n = pos.length / 3;
+    c.setHex(hex);
+    pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array);
+    for (let i = 0; i < g.attributes.position.count; i++) col.push(c.r, c.g, c.b);
+    for (const i of g.index.array) ind.push(i + n);
+    g.dispose();
+  }
+  geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(ind);
+  mobGeo.set(key, geo);
+  return geo;
+}
+const EYE_MAT = new THREE.MeshBasicMaterial({ vertexColors: true });   // leuchtende Spinnenaugen
+function makeMobModel(type) {
+  const def = MODELS[type], g = new THREE.Group(), mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+  g.add(new THREE.Mesh(partsGeo(type, def.body), mat));
+  if (def.eyes) g.add(new THREE.Mesh(partsGeo(type + ':eyes', def.eyes), EYE_MAT));
+  const limbs = def.limbs.map((L, i) => {
+    const piv = new THREE.Group();
+    piv.position.set(...L.p);
+    piv.rotation.set(...(L.rest || ZERO3));
+    piv.add(new THREE.Mesh(partsGeo(`${type}:${i}`, [[...L.s, ...L.o, L.c]]), mat));
+    g.add(piv);
+    return { piv, L };
+  });
+  g.scale.setScalar(def.scale || 1);
+  scene.add(g);
+  return { g, mat, limbs };
+}
+
+// ── Darstellung (alle Spieler) ──
+const mobViews = new Map();
+function syncMobViews(list) {
+  const seen = new Set();
+  for (const a of list) {
+    if (!Array.isArray(a) || a.length < 7 || !a.every(v => typeof v === 'number' && isFinite(v))) continue;
+    const [id, ti, x, y, z, yaw, fl] = a, type = MOB_TYPES[ti];
+    if (!type) continue;
+    seen.add(id);
+    let V = mobViews.get(id);
+    if (!V) {
+      V = { id, type, model: makeMobModel(type), cur: new THREE.Vector3(x, y, z), tgt: new THREE.Vector3(x, y, z), yaw, tyaw: yaw,
+        phase: 0, flash: 0, dying: 0, atk: 0, fl: 0, vy: 0, smokeT: 0, soundT: 3 + Math.random() * 12 };
+      mobViews.set(id, V);
+    }
+    V.tgt.set(x, y, z); V.tyaw = yaw;
+    if ((fl & 2) && !(V.fl & 2)) V.atk = 1;
+    V.fl = fl;
+  }
+  for (const V of mobViews.values()) if (!seen.has(V.id) && !V.dying) removeMobView(V);
+}
+function removeMobView(V) { scene.remove(V.model.g); V.model.mat.dispose(); mobViews.delete(V.id); }
+function mobHitFx(id) {
+  const V = mobViews.get(id);
+  if (!V || V.dying) return;
+  V.flash = 1;
+  sfx('hit', V.cur.x, V.cur.y, V.cur.z);
+  sfx(MOB[V.type].voice, V.cur.x, V.cur.y, V.cur.z);
+}
+function mobDieFx(id) { const V = mobViews.get(id); if (V && !V.dying) V.dying = 0.5; }
+function updateMobViews(dt) {
+  const k = 1 - Math.exp(-dt * 12), cam = camera.position, now = performance.now();
+  for (const V of mobViews.values()) {
+    const M = V.model, T = MOB[V.type];
+    if (V.dying) {   // umkippen, dann Rauchwölkchen
+      V.dying -= dt;
+      M.g.rotation.z = Math.min(1, (0.5 - V.dying) / 0.35) * Math.PI / 2;
+      M.mat.emissive.setRGB(0.6, 0, 0);
+      if (V.dying <= 0) {
+        puff(V.cur.x, V.cur.y + 0.1, V.cur.z, [0.92, 0.92, 0.92], 18, { g: -1.5, speed: 2.2, up: 0.4, spread: 0.45, h: T.h, life: 0.5 });
+        sfx('poof', V.cur.x, V.cur.y, V.cur.z);
+        removeMobView(V);
+      }
+      continue;
+    }
+    const ox = V.cur.x, oy = V.cur.y, oz = V.cur.z;
+    if (V.cur.distanceToSquared(V.tgt) > 64) V.cur.copy(V.tgt); else V.cur.lerp(V.tgt, k);
+    V.yaw += angDiff(V.tyaw, V.yaw) * k;
+    const sp = Math.hypot(V.cur.x - ox, V.cur.z - oz) / Math.max(dt, 1e-3);
+    V.vy = lerp(V.vy, (V.cur.y - oy) / Math.max(dt, 1e-3), 0.3);
+    V.phase += sp * dt * (V.type === 'spider' ? 4 : 2.6);
+    V.atk = Math.max(0, V.atk - dt * 3.5);
+    const mv = Math.min(1, sp / 2), s = Math.sin(V.phase);
+    for (const { piv, L } of M.limbs) {
+      if (L.wing) {   // Hühner flattern beim Fallen und Rennen
+        const f = V.vy < -0.5 || sp > 2.2 ? 0.3 + Math.abs(Math.sin(now / 45)) * 0.9 : 0.05;
+        piv.rotation.set(0, 0, L.wing * f);
+        continue;
+      }
+      const r = L.rest || ZERO3, a = s * L.amp * L.ph * mv + (L.arm ? Math.sin(V.atk * Math.PI) * 0.7 : 0);
+      piv.rotation.set(r[0] + (L.ax === 'x' ? a : 0), r[1] + (L.ax === 'y' ? a : 0), r[2] + (L.ax === 'z' ? a : 0));
+    }
+    M.g.position.copy(V.cur); M.g.rotation.y = V.yaw;
+    V.flash = Math.max(0, V.flash - dt * 4);
+    M.mat.emissive.setRGB(V.flash * 0.7, 0, 0);
+    const d = V.cur.distanceTo(cam);
+    M.g.visible = d < 150;
+    if (V.fl & 1) {   // Gegner verbrennen in der Sonne
+      V.smokeT -= dt;
+      if (V.smokeT <= 0) {
+        V.smokeT = 0.12;
+        puff(V.cur.x, V.cur.y + T.h * 0.5, V.cur.z, Math.random() < 0.5 ? [1, 0.55, 0.1] : [0.3, 0.3, 0.3], 2,
+          { g: -3, speed: 0.6, up: 0.6, spread: T.hw, h: T.h * 0.5, life: 0.4 });
+      }
+    }
+    V.soundT -= dt;
+    if (V.soundT <= 0) { V.soundT = (T.foe ? 5 : 8) + Math.random() * 14; if (d < 20) sfx(T.voice, V.cur.x, V.cur.y, V.cur.z); }
+  }
+}
+
+// ── Angreifen ──
+function rayBox(o, d, x0, y0, z0, x1, y1, z1) {
+  let tmin = 0, tmax = Infinity;
+  for (const [oa, da, a0, a1] of [[o.x, d.x, x0, x1], [o.y, d.y, y0, y1], [o.z, d.z, z0, z1]]) {
+    if (Math.abs(da) < 1e-9) { if (oa < a0 || oa > a1) return null; continue; }
+    let t0 = (a0 - oa) / da, t1 = (a1 - oa) / da;
+    if (t0 > t1) [t0, t1] = [t1, t0];
+    tmin = Math.max(tmin, t0); tmax = Math.min(tmax, t1);
+    if (tmin > tmax) return null;
+  }
+  return tmin;
+}
+function rayMob(o, d, maxD) {
+  let best = null, bt = maxD;
+  for (const V of mobViews.values()) {
+    if (V.dying) continue;
+    const T = MOB[V.type], p = V.cur, w = T.hw + 0.12;
+    const t = rayBox(o, d, p.x - w, p.y, p.z - w, p.x + w, p.y + T.h + 0.1, p.z + w);
+    if (t !== null && t < bt) { bt = t; best = V; }
+  }
+  return best && { V: best, t: bt };
+}
+let atkReady = 0;
+function tryAttack(dir) {   // true = ein Tier/Gegner ist anvisiert (dann wird kein Block abgebaut/gebaut)
+  const o = camera.position, hit = rayMob(o, dir, 4.5);
+  if (!hit) return false;
+  const blk = raycast(o, dir, 6);
+  if (blk && blk.t < hit.t) return false;
+  const now = performance.now();
+  if (now < atkReady) return true;
+  atkReady = now + 350;
+  swingT = 1; me.act++;
+  if (G.role === 'host') { const m = mobs.get(hit.V.id); if (m) mobHurt(m, HIT_DMG, me.pos.x, me.pos.z, 0); }
+  else if (G.conn) G.conn.send({ t: 'hit', id: hit.V.id });
+  return true;
+}
+function blockHitsMob(x, y, z) {
+  for (const V of mobViews.values()) {
+    const T = MOB[V.type], p = V.cur;
+    if (!V.dying && x < p.x + T.hw && x + 1 > p.x - T.hw && y < p.y + T.h && y + 1 > p.y && z < p.z + T.hw && z + 1 > p.z - T.hw) return true;
+  }
+  return false;
+}
+
+// ── Simulation (nur Host) ──
+const mobs = new Map();
+let mobNextId = 1, mobLast = performance.now(), mobAcc = 0, mobTicks = 0, foeSpawnT = 3, animalT = 25;
+const NATURAL = new Set([GRASS, DIRT, SAND, STONE, SNOW]);
+function alivePlayers() {
+  const l = me.dead ? [] : [{ id: 0, x: me.pos.x, y: me.pos.y, z: me.pos.z }];
+  for (const R of remotes.values()) if (!R.dead) l.push({ id: R.id, x: R.tgt.x, y: R.tgt.y, z: R.tgt.z });
+  return l;
+}
+function spawnMob(type, x, y, z) {
+  const m = { id: mobNextId++, type, x, y, z, vx: 0, vy: 0, vz: 0, yaw: Math.random() * Math.PI * 2, hp: MOB[type].hp, dx: 0, dz: 0, speed: 0,
+    timer: Math.random() * 3, panic: 0, fx: 0, fz: 0, target: null, retarget: 0, atkCd: 0, atkT: 0, kb: 0, burn: false, onGround: false, hitWall: false };
+  mobs.set(m.id, m);
+  return m;
+}
+function standY(x, z, grassOnly) {   // Höhe, auf der hier ein Tier/Gegner stehen kann (nur natürlicher Boden), sonst −1
+  if (x < 2 || z < 2 || x >= W - 2 || z >= W - 2) return -1;
+  const y = topSolid(x, z), b = getB(x, y, z), a1 = getB(x, y + 1, z);
+  if (grassOnly ? b !== GRASS : !NATURAL.has(b)) return -1;
+  if (SOLID[a1] || a1 === WATER || SOLID[getB(x, y + 2, z)]) return -1;
+  return y + 1;
+}
+function spawnAnimalGroup(players) {
+  for (let tries = 0; tries < 30; tries++) {
+    const x = 8 + Math.floor(Math.random() * (W - 16)), z = 8 + Math.floor(Math.random() * (W - 16));
+    if (players.some(p => Math.hypot(p.x - x, p.z - z) < 20) || standY(x, z, true) < 0) continue;
+    const type = ANIMALS[Math.floor(Math.random() * ANIMALS.length)], n = 2 + Math.floor(Math.random() * (type === 'chicken' ? 3 : 2));
+    let made = 0;
+    for (let i = 0; i < n * 4 && made < n; i++) {
+      const ax = x + Math.floor(Math.random() * 5) - 2, az = z + Math.floor(Math.random() * 5) - 2, y = standY(ax, az, true);
+      if (y > 0) { spawnMob(type, ax + 0.5, y, az + 0.5); made++; }
+    }
+    if (made) return made;
+  }
+  return 0;
+}
+function spawnFoe(players) {
+  const p = players[Math.floor(Math.random() * players.length)];
+  for (let tries = 0; tries < 12; tries++) {
+    const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 14, x = Math.floor(p.x + Math.cos(a) * r), z = Math.floor(p.z + Math.sin(a) * r);
+    if (players.some(q => Math.hypot(q.x - x, q.z - z) < 14)) continue;
+    const y = standY(x, z, false);
+    if (y < 0) continue;
+    spawnMob(Math.random() < 0.65 ? 'zombie' : 'spider', x + 0.5, y, z + 0.5);
+    return;
+  }
+}
+function wander(m) {
+  if (m.timer > 0) return;
+  if (Math.random() < 0.5) { const a = Math.random() * Math.PI * 2; m.dx = Math.sin(a); m.dz = Math.cos(a); m.timer = 1 + Math.random() * 2.5; }
+  else { m.dx = m.dz = 0; m.timer = 2 + Math.random() * 5; }
+}
+function unsafeAhead(m) {   // Tiere laufen nicht ins Wasser und nicht über Klippen
+  const T = MOB[m.type], x = Math.floor(m.x + m.dx * (T.hw + 0.45)), z = Math.floor(m.z + m.dz * (T.hw + 0.45)), y = Math.floor(m.y + 0.01);
+  if (x < 2 || z < 2 || x >= W - 2 || z >= W - 2) return true;
+  const f = getB(x, y, z), b1 = getB(x, y - 1, z);
+  if (f === WATER || b1 === WATER) return true;
+  return !SOLID[f] && !SOLID[b1] && !SOLID[getB(x, y - 2, z)];
+}
+function stepAhead(m) {     // eine Stufe (1 Block) vor dem Tier, über die es springen kann?
+  const T = MOB[m.type], y = Math.floor(m.y + 0.01), r = T.hw + 0.3;
+  for (const [dx, dz] of [[m.dx, m.dz], [Math.sign(m.dx), 0], [0, Math.sign(m.dz)]]) {
+    if (!dx && !dz) continue;
+    const x = Math.floor(m.x + dx * r), z = Math.floor(m.z + dz * r);
+    if (SOLID[getB(x, y, z)] && !SOLID[getB(x, y + 1, z)] && (T.h <= 1 || !SOLID[getB(x, y + 2, z)])) return true;
+  }
+  return false;
+}
+function mobAI(m, dt, players) {   // false = Mob wurde entfernt
+  const T = MOB[m.type];
+  m.timer -= dt; m.atkCd -= dt; m.atkT -= dt; m.kb -= dt;
+  m.speed = T.speed;
+  if (!T.foe) {
+    if (m.panic > 0) {   // geschlagen: weglaufen
+      m.panic -= dt; m.speed = T.run;
+      if (m.timer <= 0) {
+        m.timer = 0.4 + Math.random() * 0.6;
+        const a = Math.atan2(m.x - m.fx, m.z - m.fz) + (Math.random() - 0.5) * 1.6;
+        m.dx = Math.sin(a); m.dz = Math.cos(a);
+      }
+    } else wander(m);
+    if ((m.dx || m.dz) && unsafeAhead(m)) { m.dx = m.dz = 0; m.timer = Math.min(m.timer, 0.3); }
+  } else {
+    if (!G.foes || !players.some(p => Math.hypot(p.x - m.x, p.z - m.z) < 72)) { mobs.delete(m.id); return false; }
+    if (dayK > 0.5) { m.burn = true; m.hp -= dt * 3; if (m.hp <= 0) { mobDie(m); return false; } }
+    m.retarget -= dt;
+    if (m.retarget <= 0) {
+      m.retarget = 0.5;
+      let best = null, bd = 24;
+      for (const p of players) {
+        const d = Math.hypot(p.x - m.x, p.y - m.y, p.z - m.z);
+        if (d < bd || (p.id === m.target && d < 32)) { bd = d; best = p; }
+      }
+      m.target = best ? best.id : null;
+    }
+    const tp = m.target === null ? null : players.find(p => p.id === m.target);
+    if (tp) {
+      const ddx = tp.x - m.x, ddz = tp.z - m.z, dist = Math.hypot(ddx, ddz) || 1;
+      m.dx = ddx / dist; m.dz = ddz / dist;
+      if (dist < T.hw + PW + 0.5 && tp.y < m.y + T.h && tp.y + PH > m.y && m.atkCd <= 0) {
+        m.atkCd = T.atkCd; m.atkT = 0.3;
+        hurtPlayer(tp.id, T.dmg, m.x, m.z, m.type);
+      }
+      if (dist < T.hw + PW + 0.1) m.speed = 0;
+      if (m.type === 'spider' && m.onGround && dist > 2 && dist < 5 && Math.random() < dt * 1.2) { m.vy = 6.5; m.vx = m.dx * 7; m.vz = m.dz * 7; m.kb = 0.5; }
+    } else { m.speed = T.speed * 0.4; wander(m); }
+  }
+  if (m.dx || m.dz) m.yaw += angDiff(Math.atan2(-m.dx, -m.dz), m.yaw) * Math.min(1, dt * 8);
+  return true;
+}
+function mobPhysics(m, dt) {
+  const T = MOB[m.type];
+  for (let i = 0; i < 3 && boxCollides(m.x, m.y, m.z, T.hw, T.h); i++) m.y = Math.floor(m.y) + 1;   // eingebaut → nach oben
+  const inWater = getB(Math.floor(m.x), Math.floor(m.y + 0.35), Math.floor(m.z)) === WATER;
+  if (inWater) m.vy = m.vy > 2.2 ? m.vy - 26 * dt : Math.min(m.vy + 18 * dt, 2.2);   // schwimmen nach oben
+  else { m.vy -= 26 * dt; if (m.type === 'chicken') m.vy = Math.max(m.vy, -3); }
+  m.vy = Math.max(m.vy, -40);
+  const k = 1 - Math.exp(-(m.kb > 0 ? 1.5 : m.onGround || inWater ? 12 : 3) * dt);
+  m.vx = lerp(m.vx, m.dx * m.speed, k); m.vz = lerp(m.vz, m.dz * m.speed, k);
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(m.vx), Math.abs(m.vy), Math.abs(m.vz)) * dt / 0.4)), s = dt / steps;
+  m.onGround = false; m.hitWall = false;
+  for (let i = 0; i < steps; i++) {
+    if (moveBox(m, 'x', m.vx * s, T.hw, T.h)) { m.vx = 0; m.hitWall = true; }
+    if (moveBox(m, 'z', m.vz * s, T.hw, T.h)) { m.vz = 0; m.hitWall = true; }
+    if (moveBox(m, 'y', m.vy * s, T.hw, T.h)) { if (m.vy < 0) m.onGround = true; m.vy = 0; }
+  }
+  if (m.hitWall && m.speed > 0 && (m.dx || m.dz)) {
+    if (m.type === 'spider') m.vy = Math.max(m.vy, 4);   // Spinnen klettern Wände hoch
+    else if ((m.onGround || inWater) && stepAhead(m)) m.vy = 8.2;
+  }
+  m.x = clamp(m.x, T.hw + 0.01, W - T.hw - 0.01); m.z = clamp(m.z, T.hw + 0.01, W - T.hw - 0.01);
+  if (m.y < -10) mobs.delete(m.id);
+}
+function separateMobs() {   // nicht ineinander stehen
+  const a = [...mobs.values()];
+  for (let i = 0; i < a.length; i++) for (let j = i + 1; j < a.length; j++) {
+    const p = a[i], q = a[j], P = MOB[p.type], Q = MOB[q.type], r = P.hw + Q.hw, dx = q.x - p.x, dz = q.z - p.z;
+    if (Math.abs(dx) > r || Math.abs(dz) > r || Math.abs(q.y - p.y) > 1) continue;
+    const d = Math.hypot(dx, dz) || 0.01;
+    if (d >= r) continue;
+    const push = (r - d) * 0.25, ux = d > 0.01 ? dx / d : 1, uz = d > 0.01 ? dz / d : 0;
+    moveBox(p, 'x', -ux * push, P.hw, P.h); moveBox(p, 'z', -uz * push, P.hw, P.h);
+    moveBox(q, 'x', ux * push, Q.hw, Q.h); moveBox(q, 'z', uz * push, Q.hw, Q.h);
+  }
+}
+function mobStep(dt) {
+  const players = alivePlayers();
+  let animals = 0, foes = 0;
+  for (const m of mobs.values()) MOB[m.type].foe ? foes++ : animals++;
+  animalT -= dt;
+  if (animalT <= 0) { animalT = 25; if (animals < ANIMAL_TARGET) spawnAnimalGroup(players); }
+  foeSpawnT -= dt;
+  if (G.foes && dayK < 0.25 && players.length && foeSpawnT <= 0) {
+    foeSpawnT = 4;
+    if (foes < Math.min(12, 3 + 2 * players.length)) spawnFoe(players);
+  }
+  for (const m of [...mobs.values()]) if (mobAI(m, dt, players)) mobPhysics(m, dt);
+  separateMobs();
+}
+function mobHurt(m, dmg, fx, fz, by) {
+  const T = MOB[m.type], dx = m.x - fx, dz = m.z - fz, l = Math.hypot(dx, dz) || 1;
+  m.hp -= dmg;
+  m.vx = dx / l * 6.5; m.vz = dz / l * 6.5; m.vy = Math.max(m.vy, 5); m.kb = 0.35;
+  if (T.foe) { m.target = by; m.retarget = 2; }
+  else { m.panic = 5; m.fx = fx; m.fz = fz; m.timer = 0; }
+  broadcast({ t: 'mhit', id: m.id });
+  mobHitFx(m.id);
+  if (m.hp <= 0) mobDie(m);
+}
+function mobDie(m) { mobs.delete(m.id); broadcast({ t: 'mdie', id: m.id }); mobDieFx(m.id); }
+function hurtPlayer(id, n, fx, fz, type) {
+  if (id === 0) localHurt(n, fx, fz, type);
+  else { const R = remotes.get(id); if (R && R.conn) R.conn.send({ t: 'dmg', n, x: r2(fx), z: r2(fz), k: type }); }
+}
+const mobList = () => [...mobs.values()].map(m => [m.id, MOB_TYPES.indexOf(m.type), r2(m.x), r2(m.y), r2(m.z), r2(m.yaw), (m.burn ? 1 : 0) | (m.atkT > 0 ? 2 : 0)]);
+// Feste Schritte von 50 ms per Timer – läuft auch weiter, wenn der Host-Tab im Hintergrund ist
+setInterval(() => {
+  const now = performance.now();
+  if (G.role !== 'host' || !G.playing) { mobLast = now; return; }
+  mobAcc = Math.min(mobAcc + (now - mobLast) / 1000, 1.5); mobLast = now;
+  while (mobAcc >= 0.05) { mobAcc -= 0.05; mobStep(0.05); }
+  const l = mobList();
+  syncMobViews(l);
+  if (++mobTicks % 2 === 0 && remotes.size) broadcast({ t: 'mobs', l });
+}, 50);
+
+/* ═════════════════ Leben, Schaden, Wiederbeleben ═════════════════ */
+const MAXHP = 20;
+let hurtAt = 0, invulUntil = 0, regenT = 0, hurtRoll = 0;
+function heartURL(kind) {   // Pixel-Herz (voll, halb, leer)
+  const rows = ['.XX...XX.', 'XXXX.XXXX', 'XXXXXXXXX', 'XXXXXXXXX', '.XXXXXXX.', '..XXXXX..', '...XXX...', '....X....'];
+  const c = document.createElement('canvas'), g = c.getContext('2d'), on = (x, y) => rows[y]?.[x] === 'X';
+  c.width = 11; c.height = 10;
+  for (let y = -1; y <= 8; y++) for (let x = -1; x <= 9; x++) {
+    let col = null;
+    if (on(x, y)) col = kind === 'empty' || (kind === 'half' && x > 4) ? '#3a3a44' : (x === 2 && y === 1) || (x === 1 && y === 2) ? '#ffb3b3' : '#e3262f';
+    else if (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1)) col = '#1c0808';
+    if (col) { g.fillStyle = col; g.fillRect(x + 1, y + 1, 1, 1); }
+  }
+  return `url(${c.toDataURL()})`;
+}
+const HEARTS = { full: heartURL('full'), half: heartURL('half'), empty: heartURL('empty') };
+const heartEls = Array.from({ length: MAXHP / 2 }, () => document.createElement('i'));
+$('hearts').append(...heartEls);
+function renderHearts(shake) {
+  heartEls.forEach((el, i) => { const v = me.hp - i * 2; el.style.backgroundImage = v >= 2 ? HEARTS.full : v === 1 ? HEARTS.half : HEARTS.empty; });
+  const h = $('hearts');
+  h.classList.toggle('low', me.hp <= 6);
+  if (shake) { h.classList.remove('shake'); void h.offsetWidth; h.classList.add('shake'); }
+}
+function setFoes(v) {
+  G.foes = v !== false;
+  document.body.classList.toggle('peaceful', !G.foes);
+  if (!G.foes && !me.dead) { me.hp = MAXHP; renderHearts(); }
+  updateRoomUI();
+}
+function toggleFoes(v) {   // nur Host
+  setFoes(v);
+  store.set('craft.foes', G.foes ? '1' : '0');
+  broadcast({ t: 'cfg', foes: G.foes });
+  const text = G.foes ? 'Gegner sind an: Nachts kommen Zombies und Spinnen.' : 'Friedlicher Modus: keine Gegner mehr.';
+  broadcast({ t: 'sys', m: text }); sysMsg(text);
+}
+function localHurt(n, fx, fz, type) {
+  const now = performance.now();
+  if (me.dead || !G.foes || !G.playing || now < invulUntil) return;
+  invulUntil = now + 450; hurtAt = now;
+  me.hp = Math.max(0, me.hp - n);
+  const dx = me.pos.x - fx, dz = me.pos.z - fz, l = Math.hypot(dx, dz) || 1;
+  me.vel.x += dx / l * 7; me.vel.z += dz / l * 7;
+  if (!me.fly) me.vel.y = Math.max(me.vel.y, 5);
+  hurtRoll = 1;
+  const f = $('dmg'); f.classList.remove('on'); void f.offsetWidth; f.classList.add('on');
+  sfx('ouch');
+  renderHearts(true);
+  if (me.hp <= 0) die(type);
+}
+function die(type) {
+  me.dead = true; me.vel.set(0, 0, 0); setFly(false);
+  puff(me.pos.x, me.pos.y + 0.2, me.pos.z, [0.92, 0.92, 0.92], 20, { g: -1.5, speed: 2.4, up: 0.4, spread: 0.4, h: 1.6, life: 0.6 });
+  $('deadText').textContent = MOB[type]?.nom ? `${MOB[type].nom} hat dich erwischt. Deine Bauwerke bleiben natürlich erhalten.` : 'Das war knapp!';
+  setUI('dead');
+  if (document.pointerLockElement) document.exitPointerLock();
+  if (G.role === 'host') {
+    const text = MOB[type]?.dat ? `${me.name} wurde von ${MOB[type].dat} besiegt.` : `${me.name} ist gestorben.`;
+    broadcast({ t: 'sys', m: text }); sysMsg(text);
+  } else if (G.conn) G.conn.send({ t: 'died', k: type });
+}
+function revive() { me.hp = MAXHP; me.dead = false; hurtAt = 0; renderHearts(); respawn(); }
+function updateHealth(dt, now) {
+  if (!me.dead && me.hp < MAXHP && now - hurtAt > 5000) {
+    regenT += dt;
+    if (regenT >= 2) { regenT = 0; me.hp++; renderHearts(); }
+  } else regenT = 0;
 }
 
 /* ═════════════════ Netzwerk-Transport (PeerJS oder lokal) ═════════════════ */
@@ -1265,7 +1787,7 @@ const Transport = { host: LOCAL ? localHost : peerHost, join: LOCAL ? localJoin 
 
 /* ═════════════════ Mehrspieler-Logik ═════════════════ */
 function broadcast(m, except) { for (const R of remotes.values()) if (R.conn && R.conn !== except) R.conn.send(m); }
-const posArr = () => [r2(me.pos.x), r2(me.pos.y), r2(me.pos.z), r2(me.yaw), r2(me.pitch), me.act];
+const posArr = () => [r2(me.pos.x), r2(me.pos.y), r2(me.pos.z), r2(me.yaw), r2(me.pitch), me.act, me.dead ? 1 : 0];   // letzter Wert: Flags (1 = besiegt)
 const validPos = a => Array.isArray(a) && a.length >= 6 && a.slice(0, 6).every(v => typeof v === 'number' && isFinite(v));
 const nameOf = id => id === G.myId ? me.name : remotes.get(id)?.name ?? '???';
 const colorOf = id => id === G.myId ? me.color : remotes.get(id)?.color ?? '#fff';
@@ -1276,12 +1798,13 @@ function uniqueName(n) {
   for (let i = 2; ; i++) if (!taken.has(`${n.slice(0, 13)} ${i}`)) return `${n.slice(0, 13)} ${i}`;
 }
 function addRemote(id, name, color, p) {
-  const a = validPos(p) ? p.slice(0, 6) : [G.spawn.x, G.spawn.y, G.spawn.z, 0, 0, 0];
+  const a = validPos(p) ? [...p.slice(0, 6), (p[6] | 0) & 1] : [G.spawn.x, G.spawn.y, G.spawn.z, 0, 0, 0, 0];
   color = COLORS.includes(color) ? color : '#888888';
   const av = makeAvatar(name, color);
   scene.add(av.g);
   const R = { id, name, color, av, conn: null, net: a, cur: new THREE.Vector3(a[0], a[1], a[2]), tgt: new THREE.Vector3(a[0], a[1], a[2]),
-    yaw: a[3], tyaw: a[3], pitch: a[4], tpitch: a[4], act: a[5], swing: 0, phase: 0 };
+    yaw: a[3], tyaw: a[3], pitch: a[4], tpitch: a[4], act: a[5], swing: 0, phase: 0, dead: !!a[6] };
+  av.g.visible = !R.dead;
   remotes.set(id, R);
   updateRoomUI();
   return R;
@@ -1295,7 +1818,12 @@ function removeRemote(id) {
   updateRoomUI();
 }
 function applyPos(R, a) {
-  R.net = a.slice(0, 6);
+  R.net = [...a.slice(0, 6), (a[6] | 0) & 1];
+  if (!!R.net[6] !== R.dead) {   // besiegt → Figur verschwindet in einer Wolke
+    R.dead = !!R.net[6];
+    R.av.g.visible = !R.dead;
+    if (R.dead) puff(R.cur.x, R.cur.y + 0.2, R.cur.z, [0.92, 0.92, 0.92], 20, { g: -1.5, speed: 2.4, up: 0.4, spread: 0.4, h: 1.6, life: 0.6 });
+  }
   R.tgt.set(a[0], a[1], a[2]); R.tyaw = a[3]; R.tpitch = a[4];
   if (a[5] !== R.act) { R.act = a[5]; R.swing = 1; }
 }
@@ -1340,7 +1868,7 @@ function hostMsg(conn, m) {
     if (remotes.size >= MAX_PLAYERS - 1) { conn.send({ t: 'err', m: 'Der Raum ist voll.' }); return; }
     const id = G.nextId++, name = uniqueName(cleanName(m.name)), color = COLORS.includes(m.color) ? m.color : COLORS[id % COLORS.length];
     const players = [{ id: 0, n: me.name, c: me.color, p: posArr() }, ...[...remotes.values()].map(r => ({ id: r.id, n: r.name, c: r.color, p: r.net }))];
-    conn.send({ t: 'welcome', id, n: name, seed: G.seed, time: dayT, code: G.code, players });
+    conn.send({ t: 'welcome', id, n: name, seed: G.seed, time: dayT, code: G.code, players, foes: G.foes });
     const list = editList();
     for (let i = 0; i < list.length; i += 8000) conn.send({ t: 'edits', d: list.slice(i, i + 8000) });
     conn.send({ t: 'ready' });
@@ -1370,6 +1898,15 @@ function hostMsg(conn, m) {
     if (!text) return;
     broadcast({ t: 'chat', id: R.id, m: text });
     chatMsg(R.id, text);
+  } else if (m.t === 'hit') {
+    const mob = mobs.get(m.id), now = performance.now();
+    if (!mob || now - (R.hitAt || 0) < 250 || Math.hypot(mob.x - R.tgt.x, mob.y - R.tgt.y, mob.z - R.tgt.z) > 7) return;
+    R.hitAt = now;
+    mobHurt(mob, HIT_DMG, R.tgt.x, R.tgt.z, R.id);
+  } else if (m.t === 'died') {
+    const k = MOB[m.k];
+    const text = k?.dat ? `${R.name} wurde von ${k.dat} besiegt.` : `${R.name} ist gestorben.`;
+    broadcast({ t: 'sys', m: text }); sysMsg(text);
   } else if (m.t === 'bye') conn.close();
 }
 
@@ -1385,6 +1922,7 @@ function clientMsg(m) {
       setLoad('Welt wird erzeugt …', null);
       generate(G.seed);
       for (const p of m.players) if (p.id !== G.myId) addRemote(p.id, p.n, p.c, p.p);
+      setFoes(m.foes);
       break;
     case 'edits':
       for (let k = 0; k + 1 < m.d.length; k += 2) {
@@ -1417,6 +1955,11 @@ function clientMsg(m) {
     case 'sys': sysMsg(m.m); break;
     case 'time': dayT = m.v; break;
     case 'err': failConnection('Beitritt nicht möglich', m.m); break;
+    case 'mobs': if (Array.isArray(m.l)) syncMobViews(m.l); break;
+    case 'mhit': mobHitFx(m.id); break;
+    case 'mdie': mobDieFx(m.id); break;
+    case 'dmg': if ([m.n, m.x, m.z].every(v => typeof v === 'number' && isFinite(v))) localHurt(clamp(m.n, 0, MAXHP), m.x, m.z, m.k); break;
+    case 'cfg': setFoes(m.foes); break;
   }
 }
 function failConnection(title, text) {
@@ -1507,6 +2050,8 @@ async function startHost(seed, save) {
   });
   setLoad('Welt wird gebaut …', 0);
   await buildAll(f => setLoad(null, f));
+  setFoes(store.get('craft.foes', '1') === '1');
+  for (let i = 0; i < 8; i++) spawnAnimalGroup([]);
   startPlaying(save ? 'Willkommen zurück!' : 'Deine Welt ist bereit');
   sysMsg(`Raumcode: ${G.code} – teile ihn mit deinen Freunden. Tippe /hilfe für Befehle.`);
 }
@@ -1533,7 +2078,7 @@ function startJoin(code) {
 function startPlaying(title) {
   G.playing = true;
   document.body.classList.add('ingame');
-  updateHandMesh(); renderHotbar(); updateRoomUI();
+  updateHandMesh(); renderHotbar(); renderHearts(); updateRoomUI();
   $('pauseTitle').textContent = title;
   $('resume').textContent = 'Spielen';
   setUI('pause');
@@ -1554,6 +2099,8 @@ function setUI(s) {
   $('pause').classList.toggle('hidden', s !== 'pause');
   $('inv').classList.toggle('hidden', s !== 'inv');
   $('msg').classList.toggle('hidden', s !== 'msg');
+  $('dead').classList.toggle('hidden', s !== 'dead');
+  if (s === 'dead') $('reviveBtn').focus({ preventScroll: true });
   document.body.classList.toggle('chatting', s === 'chat');
   if (s !== 'play') document.body.classList.remove('tab');
   if (s === 'pause') { updateRoomUI(); $('resume').focus({ preventScroll: true }); }
@@ -1650,6 +2197,10 @@ function updateRoomUI() {
   else st = '<span class="dot"></span>Verbinde mit dem Vermittlungsserver …';
   $('pStatus').innerHTML = st;
   $('badge').innerHTML = `Raum <b>${esc(G.code || '—')}</b> · ${n} Spieler${G.role === 'host' && !G.online ? ' · offline' : ''}`;
+  $('foesRow').hidden = G.role !== 'host';
+  $('foes').checked = G.foes;
+  $('foesInfo').hidden = G.role === 'host';
+  $('foesInfo').textContent = G.foes ? 'Nachts kommen Zombies und Spinnen (legt der Host fest).' : 'Friedlich: keine Gegner (legt der Host fest).';
   $('pPlayers').innerHTML = playersHTML();
   $('tabPlayers').innerHTML = playersHTML();
 }
@@ -1696,7 +2247,10 @@ function command(text) {
   const hostOnly = () => { if (G.role !== 'host') { sysMsg('Diesen Befehl kann nur der Host benutzen.'); return false; } return true; };
   switch (cmd.toLowerCase()) {
     case 'hilfe': case 'help':
-      sysMsg('Befehle: /spawn · /tp <Name> · /seed · /code · /tag · /nacht (Tag/Nacht nur Host)'); break;
+      sysMsg('Befehle: /spawn · /tp <Name> · /seed · /code · /tag · /nacht · /gegner (die letzten drei nur Host)'); break;
+    case 'gegner':
+      if (hostOnly()) toggleFoes(!G.foes);
+      break;
     case 'spawn': respawn(); break;
     case 'seed': sysMsg(`Seed dieser Welt: ${G.seed}`); break;
     case 'code': sysMsg(`Raumcode: ${G.code} – Link: ${inviteURL()}`); break;
@@ -1755,7 +2309,7 @@ canvas.addEventListener('mousedown', e => {
   if (ui !== 'play') return;
   e.preventDefault();
   mouse.last = performance.now();
-  if (e.button === 0) { mouse.l = true; doBreak(); }
+  if (e.button === 0) { mouse.l = true; if (!tryAttack(camDir)) doBreak(); }
   else if (e.button === 2) { mouse.r = true; doPlace(); }
   else if (e.button === 1) pickBlock();
 });
@@ -1806,6 +2360,8 @@ addEventListener('resize', () => {
   $('msgBtn').onclick = () => leaveGame();
   $('resume').onclick = () => { if (touchMode) goFullscreen(); lock(); };
   $('invDone').onclick = () => lock();
+  $('reviveBtn').onclick = () => { revive(); if (touchMode) goFullscreen(); lock(); };
+  $('foes').onchange = () => toggleFoes($('foes').checked);
   $('chatForm').addEventListener('submit', e => { e.preventDefault(); if (ui !== 'chat') return; sendChat(); closeChat(); });
   $('chatin').addEventListener('blur', () => setTimeout(() => { if (ui === 'chat') closeChat(); }, 0));
   $('leave').onclick = () => {
@@ -1875,7 +2431,10 @@ tLayer.addEventListener('pointermove', e => {
 function endPointer(e) {
   if (e.pointerId === stick.id) releaseStick();
   else if (e.pointerId === look.id) {
-    if (e.type === 'pointerup' && ui === 'play' && !look.moved && !look.breaking && performance.now() - look.t0 < HOLD_MS) doPlace(screenTarget(look.x, look.y));
+    if (e.type === 'pointerup' && ui === 'play' && !look.moved && !look.breaking && performance.now() - look.t0 < HOLD_MS) {
+      const d = screenDir(look.x, look.y);
+      if (!tryAttack(d)) doPlace(raycast(camera.position, d, 6));   // Tier/Gegner antippen = schlagen
+    }
     look.id = null; look.breaking = false; ring('');
   }
 }
@@ -1884,7 +2443,11 @@ tLayer.addEventListener('pointercancel', endPointer);
 function updateTouch(now) {
   if (look.id === null) return;
   if (!look.breaking && !look.moved && now - look.t0 >= HOLD_MS) { look.breaking = true; look.last = 0; ring('active', look.x, look.y); }
-  if (look.breaking && now - look.last > 240) { look.last = now; doBreak(screenTarget(look.x, look.y)); }
+  if (look.breaking && now - look.last > 240) {
+    look.last = now;
+    const d = screenDir(look.x, look.y);
+    if (!tryAttack(d)) doBreak(raycast(camera.position, d, 6));
+  }
 }
 function holdButton(el, down, up) {
   el.addEventListener('pointerdown', e => {
@@ -1930,7 +2493,7 @@ function frame(now) {
     updateSky(dt);
   } else {
     if (ui === 'play') {
-      if (mouse.l && now - mouse.last > 230) { mouse.last = now; doBreak(); }
+      if (mouse.l && now - mouse.last > 230) { mouse.last = now; if (!tryAttack(camDir)) doBreak(); }
       if (mouse.r && now - mouse.last > 230) { mouse.last = now; doPlace(); }
       updateTouch(now);
     }
@@ -1939,10 +2502,12 @@ function frame(now) {
     updateSky(dt);
     updateTarget();
     updateRemotes(dt);
+    updateMobViews(dt);
+    updateHealth(dt, now);
     updateParticles(dt);
     updateHand(dt);
     netTick(dt);
-    if (debugOn) $('debug').textContent = `XYZ ${me.pos.x.toFixed(1)} / ${me.pos.y.toFixed(1)} / ${me.pos.z.toFixed(1)}\n${fps} FPS · ${remotes.size + 1} Spieler\nZeit ${Math.floor(dayT * 24)}:${String(Math.floor(dayT * 1440) % 60).padStart(2, '0')} Uhr`;
+    if (debugOn) $('debug').textContent = `XYZ ${me.pos.x.toFixed(1)} / ${me.pos.y.toFixed(1)} / ${me.pos.z.toFixed(1)}\n${fps} FPS · ${remotes.size + 1} Spieler · ${mobViews.size} Tiere/Gegner\nZeit ${Math.floor(dayT * 24)}:${String(Math.floor(dayT * 1440) % 60).padStart(2, '0')} Uhr`;
   }
   renderer.clear();
   renderer.render(scene, camera);
@@ -1955,7 +2520,8 @@ function frame(now) {
   await buildAll(() => {});
 })();
 requestAnimationFrame(frame);
-if (params.has('test')) window.oliverCraft = { G, me, remotes, getB, setBlock: editBlock, world, edits, setUI, get ui() { return ui; }, get slot() { return slot; }, get touchMode() { return touchMode; } };
+if (params.has('test')) window.oliverCraft = { G, me, remotes, getB, setBlock: editBlock, world, edits, setUI, mobs, mobViews, spawnMob, localHurt,
+  setTime: v => { dayT = v; }, screenTarget, boxHitsPlayer, get dayK() { return dayK; }, get ui() { return ui; }, get slot() { return slot; }, get touchMode() { return touchMode; } };
 </script>
 </body>
 </html>
